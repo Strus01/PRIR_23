@@ -18,10 +18,13 @@ void LifeSequentialImplementation::realStep()
 		{
 			currentState = cells[row][col];
 			currentPollution = pollution[row][col];
-			cellsNext[row][col] = rules->cellNextState(currentState, liveNeighbours(row, col),
+			cellsNext[row][col] = rules->cellNextState(currentState,
+                                                       liveNeighbours(row, col),
 													   currentPollution);
 			pollutionNext[row][col] =
-				rules->nextPollution(currentState, currentPollution, pollution[row + 1][col] + pollution[row - 1][col] + pollution[row][col - 1] + pollution[row][col + 1],
+				rules->nextPollution(currentState,
+                                     currentPollution,
+                                     pollution[row + 1][col] + pollution[row - 1][col] + pollution[row][col - 1] + pollution[row][col + 1],
 									 pollution[row - 1][col - 1] + pollution[row - 1][col + 1] + pollution[row + 1][col - 1] + pollution[row + 1][col + 1]);
 		}
 }

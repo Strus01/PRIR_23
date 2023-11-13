@@ -8,6 +8,10 @@
 #include "Life.h"
 
 class LifeSequentialImplementation: public Life {
+private:
+    int processID;
+    int noProcesses;
+    int *buffer;
 protected:
 	void realStep();
 public:
