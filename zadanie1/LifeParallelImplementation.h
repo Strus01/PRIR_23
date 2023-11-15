@@ -7,8 +7,10 @@ class LifeParallelImplementation : public Life{
 private:
     int processID;
     int noProcesses;
-    int **bufferLeft;
-    int **bufferRight;
+    int **localCells;
+    int **localPollution;
+    int **leftBorder;
+    int **rightBorder;
     int sizeOfPartition;
     int beginning;
     int end;
@@ -16,6 +18,7 @@ private:
     const int POLLUTION_BORDER_IDX = 1;
 protected:
     void realStep();
+    void swapTables();
 public:
     LifeParallelImplementation();
     int numberOfLivingCells();
