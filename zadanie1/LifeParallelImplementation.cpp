@@ -1,5 +1,6 @@
 #include "LifeParallelImplementation.h"
 #include "mpi.h"
+#include <vector>
 
 LifeParallelImplementation::LifeParallelImplementation() {}
 
@@ -10,10 +11,10 @@ void LifeParallelImplementation::realStep() {
         for (int col = beginning; col < end; col++) {
             currentState = localCells[row][col];
             currentPollution = localPollution[row][col];
-            cellsNext[row][col] = rules->cellNextState(currentState,
+            cells[row][col] = rules->cellNextState(currentState,
                                                        liveNeighbours(row, col),
                                                        currentPollution);
-            pollutionNext[row][col] = rules->nextPollution(currentState,
+            pollution[row][col] = rules->nextPollution(currentState,
                                                            currentPollution,
                                                            localPollution[row + 1][col] + localPollution[row - 1][col] + localPollution[row][col - 1] + localPollution[row][col + 1],
                                                            localPollution[row - 1][col - 1] + localPollution[row - 1][col + 1] + localPollution[row + 1][col - 1] + localPollution[row + 1][col + 1]);
@@ -24,7 +25,6 @@ void LifeParallelImplementation::realStep() {
 void LifeParallelImplementation::oneStep() {
     exchangeBorders();
     realStep();
-    swapTables();
 }
 
 int LifeParallelImplementation::numberOfLivingCells() {}
@@ -39,69 +39,17 @@ void LifeParallelImplementation::beforeFirstStep() {
     beginning = processID * sizeOfPartition;
     end = beginning + sizeOfPartition;
 
-    localCells = new int*[size];
-    localPollution = new int*[size];
+    for (int i = 0; i < sizeOfPartition; i++) {
+        std::vector<int> localCellsRow(cells[i], cells[i] + size_1);
+        localCells.push_back(localCellsRow);
 
-    for (int i = 0; i < size_1; i++) {
-        localCells[i] = new int[sizeOfPartition];
-        localPollution[i] = new int[sizeOfPartition];
-    }
-
-    for (int i = 0; i < size_1; i++) {
-        for (int j = beginning; j < end; j++) {
-            localCells[i][j] = cells[i][j];
-            localPollution[i][j] = pollution[i][j];
-        }
-    }
-
-    if (processID == 0) {
-        rightBorder = new int*[2];
-        for (int i = 0; i < 2; i++) {
-            rightBorder[i] = new int[size_1];
-        }
-    }
-    else if (processID == noProcesses - 1) {
-        leftBorder = new int*[2];
-        for (int i = 0; i < 2; i++) {
-            leftBorder[i] = new int[size_1];
-        }
-    } else {
-        leftBorder = new int*[2];
-        rightBorder = new int*[2];
-        for (int i = 0; i < 2; i++) {
-            leftBorder[i] = new int[size_1];
-            rightBorder[i] = new int[size_1];
-        }
+        std::vector<int> localPollutionRow(pollution[i], pollution[i] + size_1);
+        localPollution.push_back(localPollutionRow);
     }
 }
 
 void LifeParallelImplementation::afterLastStep() {
-    for (int i = 0; i < size_1; i++) {
-        delete[] localCells[i];
-        delete[] localPollution[i];
-    }
-    delete[] localCells;
-    delete[] localPollution;
 
-    if (processID == 0) {
-        for (int i = 0; i < 2; i++) {
-            delete[] rightBorder[i];
-        }
-        delete[] rightBorder;
-    }
-    else if (processID == noProcesses - 1) {
-        for (int i = 0; i < 2; i++) {
-            delete[] leftBorder[i];
-        }
-        delete[] leftBorder;
-    } else {
-        for (int i = 0; i < 2; i++) {
-            delete[] leftBorder[i];
-            delete[] rightBorder[i];
-        }
-        delete[] leftBorder;
-        delete[] rightBorder;
-    }
 }
 
 void LifeParallelImplementation::exchangeBorders() {
@@ -109,39 +57,98 @@ void LifeParallelImplementation::exchangeBorders() {
     int nextRank = (processID + 1) % noProcesses;
 
     if (processID == 0) {
-        MPI_Send(rightBorder[CELLS_BORDER_IDX], size_1, MPI_INT, nextRank, 0, MPI_COMM_WORLD);
-        MPI_Send(rightBorder[POLLUTION_BORDER_IDX], size_1, MPI_INT, nextRank, 1, MPI_COMM_WORLD);
+        std::vector<int> cellsBorder = getRightBorder(localCells);
+        std::vector<int> pollutionBorder = getRightBorder(localCells);
 
-        MPI_Recv(rightBorder[CELLS_BORDER_IDX], size_1, MPI_INT, nextRank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Recv(rightBorder[POLLUTION_BORDER_IDX], size_1, MPI_INT, nextRank, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Send(cellsBorder.data(), int(cellsBorder.size()), MPI_INT, nextRank, 0, MPI_COMM_WORLD);
+        MPI_Send(pollutionBorder.data(), int(pollutionBorder.size()), MPI_INT, nextRank, 1, MPI_COMM_WORLD);
+
+        MPI_Recv(cellsBorder.data(), int(cellsBorder.size()), MPI_INT, nextRank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(pollutionBorder.data(), int(pollutionBorder.size()), MPI_INT, nextRank, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+
+        if (int(localCells.size()) == sizeOfPartition) {
+            localCells.push_back(cellsBorder);
+        } else {
+            localCells.back() = cellsBorder;
+        }
+
+        if (int(localPollution.size()) == sizeOfPartition) {
+            localPollution.push_back(pollutionBorder);
+        } else {
+            localPollution.back() = pollutionBorder;
+        }
     }
     else if (processID == noProcesses - 1) {
-        MPI_Send(leftBorder[CELLS_BORDER_IDX], size_1, MPI_INT, prevRank, 0, MPI_COMM_WORLD);
-        MPI_Send(leftBorder[POLLUTION_BORDER_IDX], size_1, MPI_INT, prevRank, 1, MPI_COMM_WORLD);
+        std::vector<int> cellsBorder = getLeftBorder(localCells);
+        std::vector<int> pollutionBorder = getLeftBorder(localPollution);
 
-        MPI_Recv(leftBorder[CELLS_BORDER_IDX], size_1, MPI_INT, prevRank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Recv(leftBorder[POLLUTION_BORDER_IDX], size_1, MPI_INT, prevRank, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Send(cellsBorder.data(), int(cellsBorder.size()), MPI_INT, prevRank, 0, MPI_COMM_WORLD);
+        MPI_Send(pollutionBorder.data(), int(pollutionBorder.size()), MPI_INT, prevRank, 1, MPI_COMM_WORLD);
+
+        MPI_Recv(cellsBorder.data(), int(cellsBorder.size()), MPI_INT, prevRank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(pollutionBorder.data(), int(pollutionBorder.size()), MPI_INT, prevRank, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+        if (int(localCells.size()) == sizeOfPartition) {
+            localCells.insert(localCells.begin(), cellsBorder);
+        } else {
+            localCells.front() = cellsBorder;
+        }
+
+        if (int(localPollution.size()) == sizeOfPartition) {
+            localPollution.insert(localPollution.begin(), pollutionBorder);
+        } else {
+            localPollution.front() = pollutionBorder;
+        }
     } else {
-        MPI_Send(leftBorder[CELLS_BORDER_IDX], size_1, MPI_INT, prevRank, 0, MPI_COMM_WORLD);
-        MPI_Send(leftBorder[POLLUTION_BORDER_IDX], size_1, MPI_INT, prevRank, 1, MPI_COMM_WORLD);
-        MPI_Send(rightBorder[CELLS_BORDER_IDX], size_1, MPI_INT, nextRank, 2, MPI_COMM_WORLD);
-        MPI_Send(rightBorder[POLLUTION_BORDER_IDX], size_1, MPI_INT, nextRank, 3, MPI_COMM_WORLD);
+        std::vector<int> leftCellsBorder = getLeftBorder(localCells);
+        std::vector<int> rightCellsBorder = getRightBorder(localCells);
 
-        MPI_Recv(leftBorder[CELLS_BORDER_IDX], size_1, MPI_INT, nextRank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Recv(leftBorder[POLLUTION_BORDER_IDX], size_1, MPI_INT, nextRank, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Recv(rightBorder[CELLS_BORDER_IDX], size_1, MPI_INT, nextRank, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Recv(rightBorder[POLLUTION_BORDER_IDX], size_1, MPI_INT, nextRank, 3, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        std::vector<int> leftPollutionBorder = getLeftBorder(localPollution);
+        std::vector<int> rightPollutionBorder = getRightBorder(localCells);
+
+        MPI_Send(leftCellsBorder.data(), int(leftCellsBorder.size()), MPI_INT, prevRank, 0, MPI_COMM_WORLD);
+        MPI_Send(leftPollutionBorder.data(), int(leftPollutionBorder.size()), MPI_INT, prevRank, 1, MPI_COMM_WORLD);
+        MPI_Send(rightCellsBorder.data(), int(rightCellsBorder.size()), MPI_INT, nextRank, 2, MPI_COMM_WORLD);
+        MPI_Send(rightPollutionBorder.data(), int(rightPollutionBorder.size()), MPI_INT, nextRank, 3, MPI_COMM_WORLD);
+
+        MPI_Recv(leftCellsBorder.data(), int(leftCellsBorder.size()), MPI_INT, nextRank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(leftPollutionBorder.data(), int(leftPollutionBorder.size()), MPI_INT, nextRank, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(rightCellsBorder.data(), int(rightCellsBorder.size()), MPI_INT, nextRank, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(rightPollutionBorder.data(), int(rightPollutionBorder.size()), MPI_INT, nextRank, 3, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+        if (int(localCells.size()) == sizeOfPartition) {
+            localCells.insert(localCells.begin(), rightCellsBorder);
+            localCells.push_back(leftCellsBorder);
+        } else {
+            localCells.front() = rightCellsBorder;
+            localCells.back() = leftCellsBorder;
+        }
+
+        if (int(localPollution.size()) == sizeOfPartition) {
+            localPollution.insert(localPollution.begin(), rightPollutionBorder);
+            localPollution.push_back(leftPollutionBorder);
+        } else {
+            localPollution.front() = rightPollutionBorder;
+            localPollution.back() = leftPollutionBorder;
+        }
     }
 }
 
-void LifeParallelImplementation::swapTables() {
-    int **tmp;
+std::vector<int> LifeParallelImplementation::getLeftBorder(const std::vector<std::vector<int>>& vectorOfVectors) {
+    std::vector<int> leftBorder;
+    if (!vectorOfVectors.empty()) {
+        const std::vector<int>& firstRow = vectorOfVectors.front();
+        leftBorder = firstRow;
+    }
+    return leftBorder;
+}
 
-    tmp = localCells;
-    localCells = cellsNext;
-    cellsNext = tmp;
-
-    tmp = localPollution;
-    localPollution = pollutionNext;
-    pollutionNext = tmp;
+std::vector<int> LifeParallelImplementation::getRightBorder(const std::vector<std::vector<int>>& vectorOfVectors) {
+    std::vector<int> rightBorder;
+    if (!vectorOfVectors.empty()) {
+        const std::vector<int>& lastRow = vectorOfVectors.back();
+        rightBorder = lastRow;
+    }
+    return rightBorder;
 }

@@ -2,23 +2,19 @@
 #define LIFEPARALLELIMPLEMENTATION_H_
 
 #include "Life.h"
+#include <vector>
 
 class LifeParallelImplementation : public Life{
 private:
     int processID;
     int noProcesses;
-    int **localCells;
-    int **localPollution;
-    int **leftBorder;
-    int **rightBorder;
+    std::vector<std::vector<int>> localCells;
+    std::vector<std::vector<int>> localPollution;
     int sizeOfPartition;
     int beginning;
     int end;
-    const int CELLS_BORDER_IDX = 0;
-    const int POLLUTION_BORDER_IDX = 1;
 protected:
     void realStep();
-    void swapTables();
 public:
     LifeParallelImplementation();
     int numberOfLivingCells();
@@ -27,6 +23,8 @@ public:
     void beforeFirstStep();
     void afterLastStep();
     void exchangeBorders();
+    std::vector<int> getLeftBorder(const std::vector<std::vector<int>>& vectorOfVectors);
+    std::vector<int> getRightBorder(const std::vector<std::vector<int>>& vectorOfVectors);
 };
 
 #endif //LIFEPARALLELIMPLEMENTATION_H
