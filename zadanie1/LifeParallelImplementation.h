@@ -13,6 +13,7 @@ private:
     int sizeOfPartition;
     int beginning;
     int end;
+    std::vector<int> mergeVectors(const std::vector<int>& cellsBorder, const std::vector<int>& pollutionBorder);
 protected:
     void realStep();
 public:
@@ -23,6 +24,8 @@ public:
     void beforeFirstStep();
     void afterLastStep();
     void exchangeBorders();
+    void sendBorders();
+    void recvBorders();
     std::vector<int> getLeftBorder(const std::vector<std::vector<int>>& vectorOfVectors);
     std::vector<int> getRightBorder(const std::vector<std::vector<int>>& vectorOfVectors);
 };
