@@ -82,7 +82,6 @@ int main(int argc, char **argv)
 		simulationInit(life);
 		start = MPI_Wtime();
 	}
-
 	life->beforeFirstStep();
 	for (int t = 0; t < steps; t++)
 	{

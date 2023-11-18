@@ -8,17 +8,17 @@ LifeParallelImplementation::LifeParallelImplementation() {}
 void LifeParallelImplementation::realStep() {
     int currentState, currentPollution;
 
-    for (int row = 0; row < size_1; row++) {
-        for (int col = beginning; col < end; col++) {
+    for (int row = beginning; row < end; row++) {
+        for (int col = 0; col < size_1; col++) {
             currentState = localCells[row][col];
             currentPollution = localPollution[row][col];
             cells[row][col] = rules->cellNextState(currentState,
-                                                       liveNeighbours(row, col),
-                                                       currentPollution);
+                                                   liveNeighbours(row, col),
+                                                   currentPollution);
             pollution[row][col] = rules->nextPollution(currentState,
-                                                           currentPollution,
-                                                           localPollution[row + 1][col] + localPollution[row - 1][col] + localPollution[row][col - 1] + localPollution[row][col + 1],
-                                                           localPollution[row - 1][col - 1] + localPollution[row - 1][col + 1] + localPollution[row + 1][col - 1] + localPollution[row + 1][col + 1]);
+                                                       currentPollution,
+                                                       localPollution[row + 1][col] + localPollution[row - 1][col] + localPollution[row][col - 1] + localPollution[row][col + 1],
+                                                       localPollution[row - 1][col - 1] + localPollution[row - 1][col + 1] + localPollution[row + 1][col - 1] + localPollution[row + 1][col + 1]);
         }
     }
 }
@@ -29,12 +29,10 @@ void LifeParallelImplementation::oneStep() {
 }
 
 int LifeParallelImplementation::numberOfLivingCells() {
-    // to musi działać już na połączonej tablicy (wywoływane na koniec programu)
     return sumTable( cells );
 }
 
 double LifeParallelImplementation::averagePollution() {
-    // to musi działać już na połączonej tablicy (wywoływane na koniec programu)
     return (double)sumTable( pollution ) / size_1_squared / rules->getMaxPollution();
 }
 
@@ -42,23 +40,26 @@ void LifeParallelImplementation::beforeFirstStep() {
     MPI_Comm_rank(MPI_COMM_WORLD, &processID);
     MPI_Comm_size(MPI_COMM_WORLD, &noProcesses);
     sizeOfPartition = size / noProcesses;
-
-    MPI_Scatter(&(cells[0][0]), sizeOfPartition * size_1, MPI_INT, localCellsBuff.data(), sizeOfPartition * size_1, MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Scatter(&(pollution[0][0]), sizeOfPartition * size_1, MPI_INT, localPollutionBuff.data(), sizeOfPartition * size_1, MPI_INT, 0, MPI_COMM_WORLD);
-
     beginning = processID * sizeOfPartition;
     end = beginning + sizeOfPartition;
+    localBuffSize = (size * size) / noProcesses;
+
+    localCellsBuff.resize(localBuffSize);
+    localPollution.resize(localBuffSize);
+
+    MPI_Scatter(&(cells[0][0]), localBuffSize, MPI_INT, localCellsBuff.data(), localBuffSize, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Scatter(&(pollution[0][0]), localBuffSize, MPI_INT, localPollutionBuff.data(), localBuffSize, MPI_INT, 0, MPI_COMM_WORLD);
 
     reshapeBuffs();
     reshapeBuffs();
 }
 
 void LifeParallelImplementation::afterLastStep() {
-    std::vector<int> cellsRecvBuff(size_1_squared);
-    std::vector<int> pollutionRecvBuff(size_1_squared);
+    std::vector<int> cellsRecvBuff(size * size);
+    std::vector<int> pollutionRecvBuff(size * size);
 
-    MPI_Gather(localCells.data(), sizeOfPartition * size_1, MPI_INT, cellsRecvBuff.data(), sizeOfPartition * size_1, MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Gather(localPollution.data(), sizeOfPartition * size_1, MPI_INT, pollutionRecvBuff.data(), sizeOfPartition * size_1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Gather(localCells.data(),  localBuffSize, MPI_INT, cellsRecvBuff.data(),  localBuffSize, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Gather(localPollution.data(),  localBuffSize, MPI_INT, pollutionRecvBuff.data(),  localBuffSize, MPI_INT, 0, MPI_COMM_WORLD);
 
     std::vector<std::vector<int>> cellsV = vectorToMatrix(cellsRecvBuff);
     std::vector<std::vector<int>> pollutionV= vectorToMatrix(pollutionRecvBuff);
@@ -109,7 +110,7 @@ void LifeParallelImplementation::recvBorders() {
     int nextRank = (processID + 1) % noProcesses;
 
     if (processID == 0) {
-        std::vector<int> buff;
+        std::vector<int> buff(size);
         MPI_Recv(buff.data(), int(buff.size()), MPI_INT, nextRank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
         std::vector<int> cellsBorder(buff.begin(), buff.begin() + (buff.size() / 2));
@@ -128,7 +129,7 @@ void LifeParallelImplementation::recvBorders() {
         }
     }
     else if (processID == noProcesses - 1) {
-        std::vector<int> buff;
+        std::vector<int> buff(size);
         MPI_Recv(buff.data(), int(buff.size()), MPI_INT, prevRank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
         std::vector<int> cellsBorder(buff.begin(), buff.begin() + (buff.size() / 2));
@@ -146,10 +147,10 @@ void LifeParallelImplementation::recvBorders() {
             localPollution.back() = pollutionBorder;
         }
     } else {
-        std::vector<int> leftBuff;
+        std::vector<int> leftBuff(size);
         MPI_Recv(leftBuff.data(), int(leftBuff.size()), MPI_INT, prevRank, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-        std::vector<int> rightBuff;
+        std::vector<int> rightBuff(size);
         MPI_Recv(rightBuff.data(), int(rightBuff.size()), MPI_INT, nextRank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
         std::vector<int> leftCellsBorder(leftBuff.begin(), leftBuff.begin() + (leftBuff.size() / 2));
@@ -212,8 +213,8 @@ std::vector<int> LifeParallelImplementation::mergeVectors(const std::vector<int>
 }
 
 void LifeParallelImplementation::reshapeBuffs() {
-    localCells.resize(sizeOfPartition, std::vector<int>(size_1));
-    localPollution.resize(sizeOfPartition, std::vector<int>(size_1));
+    localCells.resize(sizeOfPartition, std::vector<int>(size));
+    localPollution.resize(sizeOfPartition, std::vector<int>(size));
 
     size_t index = 0;
     for (size_t i = 0; i < sizeOfPartition; ++i) {

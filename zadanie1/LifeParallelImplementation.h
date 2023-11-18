@@ -8,10 +8,11 @@ class LifeParallelImplementation : public Life{
 private:
     int processID;
     int noProcesses;
+    std::vector<std::vector<int>> localPollution;
+    std::vector<std::vector<int>> localCells;
+    int localBuffSize;
     std::vector<int> localCellsBuff;
     std::vector<int> localPollutionBuff;
-    std::vector<std::vector<int>> localCells;
-    std::vector<std::vector<int>> localPollution;
     int sizeOfPartition;
     int beginning;
     int end;
