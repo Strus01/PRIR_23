@@ -8,12 +8,21 @@ class LifeParallelImplementation : public Life{
 private:
     int processID;
     int noProcesses;
+    std::vector<int> localCellsBuff;
+    std::vector<int> localPollutionBuff;
     std::vector<std::vector<int>> localCells;
     std::vector<std::vector<int>> localPollution;
     int sizeOfPartition;
     int beginning;
     int end;
+    std::vector<int> getLeftBorder(const std::vector<std::vector<int>>& vectorOfVectors);
+    std::vector<int> getRightBorder(const std::vector<std::vector<int>>& vectorOfVectors);
     std::vector<int> mergeVectors(const std::vector<int>& cellsBorder, const std::vector<int>& pollutionBorder);
+    std::vector<std::vector<int>> vectorToMatrix(const std::vector<int> &inputVector);
+    void reshapeBuffs();
+    void exchangeBorders();
+    void sendBorders();
+    void recvBorders();
 protected:
     void realStep();
 public:
@@ -23,11 +32,6 @@ public:
     void oneStep();
     void beforeFirstStep();
     void afterLastStep();
-    void exchangeBorders();
-    void sendBorders();
-    void recvBorders();
-    std::vector<int> getLeftBorder(const std::vector<std::vector<int>>& vectorOfVectors);
-    std::vector<int> getRightBorder(const std::vector<std::vector<int>>& vectorOfVectors);
 };
 
 #endif //LIFEPARALLELIMPLEMENTATION_H
