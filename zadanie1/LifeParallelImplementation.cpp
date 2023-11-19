@@ -51,7 +51,6 @@ void LifeParallelImplementation::beforeFirstStep() {
     MPI_Scatter(&(pollution[0][0]), localBuffSize, MPI_INT, localPollutionBuff.data(), localBuffSize, MPI_INT, 0, MPI_COMM_WORLD);
 
     reshapeBuffs();
-    reshapeBuffs();
 }
 
 void LifeParallelImplementation::afterLastStep() {
@@ -215,12 +214,12 @@ std::vector<int> LifeParallelImplementation::mergeVectors(const std::vector<int>
 void LifeParallelImplementation::reshapeBuffs() {
     localCells.resize(sizeOfPartition, std::vector<int>(size));
     localPollution.resize(sizeOfPartition, std::vector<int>(size));
-    std::cout << localPollutionBuff.size();
-    size_t index = 0;
-    for (size_t i = 0; i < sizeOfPartition; ++i) {
-        for (size_t j = 0; j < size_1; ++j) {
-            localCells[i][j] = localCellsBuff[index++];
-            localPollution[i][j] = localPollutionBuff[index++];
+    int index = 0;
+    for (int i = 0; i < sizeOfPartition; i++) {
+        for (int j = 0; j < size; j++) {
+            localCells[i][j] = localCellsBuff[index];
+            localPollution[i][j] = localPollutionBuff[index];
+            index++;
         }
     }
     localCellsBuff.clear();
