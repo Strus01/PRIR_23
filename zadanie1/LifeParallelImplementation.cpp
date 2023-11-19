@@ -12,10 +12,10 @@ void LifeParallelImplementation::realStep() {
         for (int col = 0; col < size_1; col++) {
             currentState = localCells[row][col];
             currentPollution = localPollution[row][col];
-            cells[row][col] = rules->cellNextState(currentState,
+            localCells[row][col] = rules->cellNextState(currentState,
                                                    liveNeighbours(row, col),
                                                    currentPollution);
-            pollution[row][col] = rules->nextPollution(currentState,
+            localPollution[row][col] = rules->nextPollution(currentState,
                                                        currentPollution,
                                                        localPollution[row + 1][col] + localPollution[row - 1][col] + localPollution[row][col - 1] + localPollution[row][col + 1],
                                                        localPollution[row - 1][col - 1] + localPollution[row - 1][col + 1] + localPollution[row + 1][col - 1] + localPollution[row + 1][col + 1]);
@@ -45,7 +45,7 @@ void LifeParallelImplementation::beforeFirstStep() {
     localBuffSize = (size * size) / noProcesses;
 
     localCellsBuff.resize(localBuffSize);
-    localPollution.resize(localBuffSize);
+    localPollutionBuff.resize(localBuffSize);
 
     MPI_Scatter(&(cells[0][0]), localBuffSize, MPI_INT, localCellsBuff.data(), localBuffSize, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Scatter(&(pollution[0][0]), localBuffSize, MPI_INT, localPollutionBuff.data(), localBuffSize, MPI_INT, 0, MPI_COMM_WORLD);
@@ -215,7 +215,7 @@ std::vector<int> LifeParallelImplementation::mergeVectors(const std::vector<int>
 void LifeParallelImplementation::reshapeBuffs() {
     localCells.resize(sizeOfPartition, std::vector<int>(size));
     localPollution.resize(sizeOfPartition, std::vector<int>(size));
-
+    std::cout << localPollutionBuff.size();
     size_t index = 0;
     for (size_t i = 0; i < sizeOfPartition; ++i) {
         for (size_t j = 0; j < size_1; ++j) {
