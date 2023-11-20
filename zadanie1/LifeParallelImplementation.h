@@ -14,8 +14,6 @@ private:
     std::vector<int> localCellsBuff;
     std::vector<int> localPollutionBuff;
     int sizeOfPartition;
-    int beginning;
-    int end;
     std::vector<int> getLeftBorder(const std::vector<std::vector<int>>& vectorOfVectors);
     std::vector<int> getRightBorder(const std::vector<std::vector<int>>& vectorOfVectors);
     std::vector<int> mergeVectors(const std::vector<int>& cellsBorder, const std::vector<int>& pollutionBorder);
