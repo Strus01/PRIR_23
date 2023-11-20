@@ -54,7 +54,7 @@ void LifeParallelImplementation::afterLastStep() {
         std::vector<int> pollutionRecvBuff(size * size);
 
         std::cout << "Process ID: " << processID << " Hi from afterLastStep()" << std::endl;
-        // TODO flatten localCells and localPollution
+        // TODO flatten localCells and localPollution. Or figure out why MPI_Gather is not working
         MPI_Gather(localCells.data(),  localBuffSize, MPI_INT, cellsRecvBuff.data(),  localBuffSize, MPI_INT, 0, MPI_COMM_WORLD);
         MPI_Gather(localPollution.data(),  localBuffSize, MPI_INT, pollutionRecvBuff.data(),  localBuffSize, MPI_INT, 0, MPI_COMM_WORLD);
 
