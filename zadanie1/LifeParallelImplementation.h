@@ -4,7 +4,7 @@
 #include "Life.h"
 #include <vector>
 
-class LifeParallelImplementation : public Life{
+class LifeParallelImplementation : public Life {
 private:
     int processID;
     int noProcesses;
