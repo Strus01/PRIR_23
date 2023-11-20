@@ -85,6 +85,7 @@ int main(int argc, char **argv)
 	life->beforeFirstStep();
 	for (int t = 0; t < steps; t++)
 	{
+        std::cout << "Process ID: " << rank << " Step: " << t << std::endl;
 		life->oneStep();
 	}
 	life->afterLastStep();
