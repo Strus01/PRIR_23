@@ -1,19 +1,22 @@
 #include "LifeParallelImplementation.h"
 #include "mpi.h"
 #include <vector>
-#include <algorithm>
-#include <iostream>
-#include <limits>
-#include <cmath>
+
 
 LifeParallelImplementation::LifeParallelImplementation() {}
 
 void LifeParallelImplementation::realStep() {
     int end;
+    std::vector<std::vector<int>> nextCells;
+    std::vector<std::vector<int>> nextPollution;
     if (processID == 0 || processID == noProcesses - 1) {
         end = sizeOfPartition;
+        nextCells.resize(sizeOfPartition + 1, std::vector<int>(size));
+        nextPollution.resize(sizeOfPartition + 1, std::vector<int>(size));
     } else {
         end = sizeOfPartition + 1;
+        nextCells.resize(sizeOfPartition + 2, std::vector<int>(size));
+        nextPollution.resize(sizeOfPartition + 2, std::vector<int>(size));
     }
 
     int currentState, currentPollution;
@@ -21,15 +24,24 @@ void LifeParallelImplementation::realStep() {
         for (int col = 1; col < size_1; col++) {
             currentState = localCells[row][col];
             currentPollution = localPollution[row][col];
-            localCells[row][col] = rules->cellNextState(currentState, liveNeighbours(row, col), currentPollution);
+            nextCells[row][col] = rules->cellNextState(currentState, liveNeighbours(row, col), currentPollution);
             int pollutionSumNN = localPollution[row + 1][col] + localPollution[row - 1][col] + localPollution[row][col - 1] + localPollution[row][col + 1];
             int pollutionSumNNN = localPollution[row - 1][col - 1] + localPollution[row - 1][col + 1] + localPollution[row + 1][col - 1] + localPollution[row + 1][col + 1];
-            localPollution[row][col] = rules->nextPollution(currentState, currentPollution, pollutionSumNN, pollutionSumNNN);
+            nextPollution[row][col] = rules->nextPollution(currentState, currentPollution, pollutionSumNN, pollutionSumNNN);
         }
     }
+
+    localCells = nextCells;
+    localPollution = nextPollution;
+}
+
+int LifeParallelImplementation::liveNeighbours(int row, int col) {
+    return localCells[row - 1][col] + localCells[row + 1][col] + localCells[row][col - 1] + localCells[row][col + 1] +
+           localCells[row - 1][col - 1] + localCells[row - 1][col + 1] + localCells[row + 1][col - 1] + localCells[row + 1][col + 1];
 }
 
 void LifeParallelImplementation::oneStep() {
+    MPI_Barrier(MPI_COMM_WORLD);
     exchangeBorders();
     realStep();
     removeBorders();
@@ -68,8 +80,8 @@ void LifeParallelImplementation::beforeFirstStep() {
 }
 
 void LifeParallelImplementation::afterLastStep() {
-    localCellsBuff = flattenMatrix(localCells);
-    localPollutionBuff = flattenMatrix(localPollution);
+    localCellsBuff = flattenMatrix(localCells, localBuffSize);
+    localPollutionBuff = flattenMatrix(localPollution, localBuffSize);
 
     std::vector<int> cellsRecvBuff;
     std::vector<int> pollutionRecvBuff;
@@ -78,7 +90,6 @@ void LifeParallelImplementation::afterLastStep() {
         cellsRecvBuff.resize(size * size);
         pollutionRecvBuff.resize(size * size);
     }
-    MPI_Barrier(MPI_COMM_WORLD);
     MPI_Gather(localCellsBuff.data(),  localBuffSize, MPI_INT, cellsRecvBuff.data(),  localBuffSize, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Gather(localPollutionBuff.data(),  localBuffSize, MPI_INT, pollutionRecvBuff.data(),  localBuffSize, MPI_INT, 0, MPI_COMM_WORLD);
 
@@ -98,8 +109,7 @@ void LifeParallelImplementation::afterLastStep() {
 void LifeParallelImplementation::exchangeBorders() {
     if (processID == 0) {
         std::vector<int> mergedBorders = prepareRightBuffToSend();
-        std::vector<int> buff;
-        buff.resize(int(mergedBorders.size()));
+        std::vector<int> buff(int(mergedBorders.size()));
 
         MPI_Sendrecv(mergedBorders.data(), int(mergedBorders.size()), MPI_INT, processID + 1, 100,
                      buff.data(), int(mergedBorders.size()), MPI_INT, processID + 1, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -107,9 +117,7 @@ void LifeParallelImplementation::exchangeBorders() {
         postprocessRightRecivedBuff(buff);
     } else if (processID == noProcesses - 1) {
         std::vector<int> mergedBorders = prepareLeftBuffToSend();
-
-        std::vector<int> buff;
-        buff.resize(int(mergedBorders.size()));
+        std::vector<int> buff(int(mergedBorders.size()));
 
         MPI_Sendrecv(mergedBorders.data(), int(mergedBorders.size()), MPI_INT, processID - 1, 100,
                      buff.data(), int(mergedBorders.size()), MPI_INT, processID - 1, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -119,18 +127,16 @@ void LifeParallelImplementation::exchangeBorders() {
         std::vector<int> mergedLeftBorder = prepareLeftBuffToSend();
         std::vector<int> mergedRightBorder = prepareRightBuffToSend();
 
-        std::vector<int> leftBuff;
-        leftBuff.resize(int(mergedLeftBorder.size()));
-
-        std::vector<int> rightBuff;
-        rightBuff.resize(int(mergedRightBorder.size()));
+        std::vector<int> leftBuff(int(mergedLeftBorder.size()));
+        std::vector<int> rightBuff(int(mergedRightBorder.size()));
 
         MPI_Sendrecv(mergedLeftBorder.data(), int(mergedLeftBorder.size()), MPI_INT, processID - 1, 100,
                      leftBuff.data(), int(mergedLeftBorder.size()), MPI_INT, processID - 1, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         MPI_Sendrecv(mergedRightBorder.data(), int(mergedRightBorder.size()), MPI_INT, processID + 1, 100,
                      rightBuff.data(), int(mergedRightBorder.size()), MPI_INT, processID + 1, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-        postprocessRecivedBuffs(leftBuff, rightBuff);
+        postprocessLeftRecivedBuff(leftBuff);
+        postprocessRightRecivedBuff(rightBuff);
     }
 }
 
@@ -151,50 +157,15 @@ std::vector<int> LifeParallelImplementation::prepareRightBuffToSend() {
 void LifeParallelImplementation::postprocessLeftRecivedBuff(const std::vector<int> &recivedBuff) {
     std::vector<int> cellsBorder(recivedBuff.begin(), recivedBuff.begin() + (recivedBuff.size() / 2));
     std::vector<int> pollutionBorder(recivedBuff.begin() + (recivedBuff.size() / 2), recivedBuff.end());
-
-    if (int(localCells.size()) == sizeOfPartition) {
-        localCells.insert(localCells.begin(), cellsBorder);
-    }
-
-    if (int(localPollution.size()) == sizeOfPartition) {
-        localPollution.insert(localPollution.begin(), pollutionBorder);
-    }
+    localCells.insert(localCells.begin(), cellsBorder);
+    localPollution.insert(localPollution.begin(), pollutionBorder);
 }
 
 void LifeParallelImplementation::postprocessRightRecivedBuff(const std::vector<int> &recivedBuff) {
     std::vector<int> cellsBorder(recivedBuff.begin(), recivedBuff.begin() + (recivedBuff.size() / 2));
     std::vector<int> pollutionBorder(recivedBuff.begin() + (recivedBuff.size() / 2), recivedBuff.end());
-
-    if (int(localCells.size()) == sizeOfPartition) {
-        localCells.push_back(cellsBorder);
-    }
-
-    if (int(localPollution.size()) == sizeOfPartition) {
-        localPollution.push_back(pollutionBorder);
-    }
-}
-
-void LifeParallelImplementation::postprocessRecivedBuffs(const std::vector<int> &leftRecivedBuff, const std::vector<int> &rightRecivedBuff) {
-    std::vector<int> leftCellsBorder(leftRecivedBuff.begin(), leftRecivedBuff.begin() + (leftRecivedBuff.size() / 2));
-    std::vector<int> leftPollutionBorder(leftRecivedBuff.begin() + (leftRecivedBuff.size() / 2), leftRecivedBuff.end());
-    std::vector<int> rightCellsBorder(rightRecivedBuff.begin(), rightRecivedBuff.begin() + (rightRecivedBuff.size() / 2));
-    std::vector<int> rightPollutionBorder(rightRecivedBuff.begin() + (rightRecivedBuff.size() / 2), rightRecivedBuff.end());
-
-    if (int(localCells.size()) == sizeOfPartition) {
-        localCells.insert(localCells.begin(), rightCellsBorder);
-        localCells.push_back(leftCellsBorder);
-    } else {
-        localCells.front() = rightCellsBorder;
-        localCells.back() = leftCellsBorder;
-    }
-
-    if (int(localPollution.size()) == sizeOfPartition) {
-        localPollution.insert(localPollution.begin(), rightPollutionBorder);
-        localPollution.push_back(leftPollutionBorder);
-    } else {
-        localPollution.front() = rightPollutionBorder;
-        localPollution.back() = leftPollutionBorder;
-    }
+    localCells.push_back(cellsBorder);
+    localPollution.push_back(pollutionBorder);
 }
 
 void LifeParallelImplementation::reshapeBuffs() {
@@ -235,16 +206,15 @@ std::vector<int> LifeParallelImplementation::mergeVectors(const std::vector<int>
     return mergedBorders;
 }
 
-
-std::vector<int> LifeParallelImplementation::flattenMatrix(const std::vector<std::vector<int>> &vec) {
+std::vector<int> LifeParallelImplementation::flattenMatrix(const std::vector<std::vector<int>> &vec, int &size) {
     std::vector<int> flattened;
-    for (const auto& innerVector : vec) {
+    for (const auto &innerVector : vec) {
         flattened.insert(flattened.end(), innerVector.begin(), innerVector.end());
     }
     return flattened;
 }
 
-std::vector<std::vector<int>> LifeParallelImplementation::vectorToMatrix(const std::vector<int>& vec) {
+std::vector<std::vector<int>> LifeParallelImplementation::vectorToMatrix(const std::vector<int> &vec) {
     std::vector<std::vector<int>> outputMatrix(size, std::vector<int>(size));
     for (int i = 0; i < size; ++i) {
         for (int j = 0; j < size; ++j) {
