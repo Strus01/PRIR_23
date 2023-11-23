@@ -5,6 +5,7 @@
 
 #include "LifeSequentialImplementation.h"
 #include <stdlib.h>
+#include <iostream>
 
 LifeSequentialImplementation::LifeSequentialImplementation()
 {
