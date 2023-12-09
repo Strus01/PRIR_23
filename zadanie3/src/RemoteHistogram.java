@@ -17,7 +17,7 @@ public interface RemoteHistogram extends Remote {
     /**
      * Dodanie danej do histogramu o wskazanym identyfikatorze.
      *
-     * @param histogramID identyfikator histogramu, do którego naleĹźy dodać value
+     * @param histogramID identyfikator histogramu, do którego należy dodać value
      * @param value       wartość do dodania do histogramu histogramID
      * @throws RemoteException
      */
