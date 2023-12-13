@@ -29,6 +29,7 @@ void LifeParallelImplementation::realStep()
 
 void LifeParallelImplementation::oneStep()
 {
+    MPI_Barrier(MPI_COMM_WORLD);
     exchangeBorders();
     realStep();
     swapTables();
@@ -181,17 +182,15 @@ void LifeParallelImplementation::exchangeBorders() {
     if (processID == 0) {
         int *cellsBorder = cells[endOfPartition];
         int *pollutionBorder = pollution[endOfPartition];
-        int sizeCells = sizeof(cellsBorder) / sizeof(cellsBorder[0]);
-        int sizePollution = sizeof(pollutionBorder) / sizeof(pollutionBorder[0]);
-        int* mergedArray = mergeArrays(cellsBorder, sizeCells, pollutionBorder, sizePollution);
+        int* mergedArray = mergeArrays(cellsBorder, size, pollutionBorder, size);
 
-        int* buff = new int[sizeCells + sizePollution];
+        int* buff = new int[2 * size];
 
-        MPI_Sendrecv(mergedArray, sizeCells + sizePollution, MPI_INT, processID + 1, 100,
-                     buff, sizeCells + sizePollution, MPI_INT, processID + 1, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Sendrecv(mergedArray,  2 * size, MPI_INT, processID + 1, 100,
+                     buff, 2 * size, MPI_INT, processID + 1, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-        for (int i = 0; i < sizeCells + sizePollution; i++) {
-            if (i < sizeCells)
+        for (int i = 0; i < 2 * size; i++) {
+            if (i < size)
                 cells[endOfPartition][i] = buff[i];
             else
                 pollution[endOfPartition][i] = buff[i];
@@ -201,17 +200,15 @@ void LifeParallelImplementation::exchangeBorders() {
     } else if (processID == noProcesses - 1) {
         int *cellsBorder = cells[startOfPartition];
         int *pollutionBorder = pollution[startOfPartition];
-        int sizeCells = sizeof(cellsBorder) / sizeof(cellsBorder[0]);
-        int sizePollution = sizeof(pollutionBorder) / sizeof(pollutionBorder[0]);
-        int* mergedArray = mergeArrays(cellsBorder, sizeCells, pollutionBorder, sizePollution);
+        int* mergedArray = mergeArrays(cellsBorder, size, pollutionBorder, size);
 
-        int* buff = new int[sizeCells + sizePollution];
+        int* buff = new int[2 * size];
 
-        MPI_Sendrecv(mergedArray, sizeCells + sizePollution, MPI_INT, processID - 1, 100,
-                     buff, sizeCells + sizePollution, MPI_INT, processID - 1, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Sendrecv(mergedArray, 2 * size, MPI_INT, processID - 1, 100,
+                     buff, 2 * size, MPI_INT, processID - 1, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-        for (int i = 0; i < sizeCells + sizePollution; i++) {
-            if (i < sizeCells)
+        for (int i = 0; i < 2 * size; i++) {
+            if (i < size)
                 cells[startOfPartition][i] = buff[i];
             else
                 pollution[startOfPartition][i] = buff[i];
@@ -223,34 +220,32 @@ void LifeParallelImplementation::exchangeBorders() {
         int *cellsLeftBorder = cells[startOfPartition];
         int *pollutionRightBorder = pollution[endOfPartition];
         int *pollutionLeftBorder = pollution[startOfPartition];
-        int sizeCells = sizeof(cellsRightBorder) / sizeof(cellsRightBorder[0]);
-        int sizePollution = sizeof(pollutionRightBorder) / sizeof(pollutionRightBorder[0]);
-        int* mergedLeftArray = mergeArrays(cellsRightBorder, sizeCells, pollutionLeftBorder, sizePollution);
-        int* mergedRightArray = mergeArrays(cellsLeftBorder, sizeCells, pollutionRightBorder, sizePollution);
+        int* mergedLeftArray = mergeArrays(cellsRightBorder, size, pollutionRightBorder, size);
+        int* mergedRightArray = mergeArrays(cellsLeftBorder, size, pollutionLeftBorder, size);
 
-        int* leftBuff = new int[sizeCells + sizePollution];
-        int* rightBuff = new int[sizeCells + sizePollution];
+        int* leftBuff = new int[2 * size];
+        int* rightBuff = new int[2 * size];
 
-        MPI_Sendrecv(mergedLeftArray, sizeCells + sizePollution, MPI_INT, processID - 1, 100,
-                     rightBuff, sizeCells + sizePollution, MPI_INT, processID - 1, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Sendrecv(mergedRightArray, sizeCells + sizePollution, MPI_INT, processID + 1, 100,
-                     leftBuff, sizeCells + sizePollution, MPI_INT, processID + 1, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Sendrecv(mergedLeftArray, 2 * size, MPI_INT, processID - 1, 100,
+                     leftBuff, 2 * size, MPI_INT, processID - 1, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Sendrecv(mergedRightArray, 2 * size, MPI_INT, processID + 1, 100,
+                     rightBuff, 2 * size, MPI_INT, processID + 1, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-        for (int i = 0; i < sizeCells + sizePollution; i++) {
-            if (i < sizeCells)
+        for (int i = 0; i < 2 * size; i++) {
+            if (i < size)
+                cells[startOfPartition][i] = leftBuff[i];
+            else
+                pollution[startOfPartition][i] = leftBuff[i];
+        }
+        for (int i = 0; i < 2 * size; i++) {
+            if (i < size)
                 cells[endOfPartition][i] = rightBuff[i];
             else
                 pollution[endOfPartition][i] = rightBuff[i];
         }
 
-        for (int i = 0; i < sizeCells + sizePollution; i++) {
-            if (i < sizeCells)
-                cells[startOfPartition][i] = leftBuff[i];
-            else
-                pollution[startOfPartition][i] = leftBuff[i];
-        }
-        delete[] rightBuff;
         delete[] leftBuff;
+        delete[] rightBuff;
     }
 }
 
