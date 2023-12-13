@@ -4,16 +4,13 @@
 #include <stdlib.h>
 #include <iostream>
 
-
 LifeParallelImplementation::LifeParallelImplementation() {}
 
 void LifeParallelImplementation::realStep()
 {
     int currentState, currentPollution;
-    int end = endOfPartition;
-    int start;
 
-    for (int row = startOfPartition + 1; row < end - 1; row++) {
+    for (int row = startOfPartition + 1; row < endOfPartition - 1; row++) {
         for (int col = 1; col < size_1; col++) {
             currentState = cells[row][col];
             currentPollution = pollution[row][col];
@@ -35,6 +32,7 @@ void LifeParallelImplementation::oneStep()
     exchangeBorders();
     realStep();
     swapTables();
+
 }
 
 int LifeParallelImplementation::numberOfLivingCells() {
@@ -53,9 +51,11 @@ void LifeParallelImplementation::beforeFirstStep() {
     startOfPartition = sizeOfPartition * processID;
     endOfPartition = startOfPartition + sizeOfPartition;
 
-    if (size % noProcesses != 0 && processID == noProcesses - 1) {
+    if (size % noProcesses != 0) {
         additionalDataRows = size % noProcesses;
-        endOfPartition = startOfPartition + sizeOfPartition + additionalDataRows;
+        if (processID == noProcesses - 1) {
+            endOfPartition = startOfPartition + sizeOfPartition + additionalDataRows;
+        }
     }
 
     int *flattenedCells = new int[size * size];
@@ -90,19 +90,21 @@ void LifeParallelImplementation::afterLastStep() {
     if (additionalDataRows == 0) {
         int* cellsRecvBuff = new int[size * size];
         int* pollutionRecvBuff = new int[size * size];
+        int idx = 0;
         for (int row = startOfPartition; row < endOfPartition; row++) {
-            for (int col = 1; col < size_1; col++) {
-                cellsToSend[row * size + col] = cells[row][col];
-                pollutionToSend[row * size + col] = pollution[row][col];
+            for (int col = 0; col < size; col++) {
+                cellsToSend[idx * size + col] = cells[row][col];
+                pollutionToSend[idx * size + col] = pollution[row][col];
             }
+            idx++;
         }
         
         MPI_Gather(cellsToSend, size * sizeOfPartition, MPI_INT, cellsRecvBuff, size * sizeOfPartition, MPI_INT, 0, MPI_COMM_WORLD);
         MPI_Gather(pollutionToSend, size * sizeOfPartition, MPI_INT, pollutionRecvBuff, size * sizeOfPartition, MPI_INT, 0, MPI_COMM_WORLD);
-
+        
         if (processID == 0) {
             for (int row = 0; row < size; row++) {
-                for (int col = 0; col < size; row++) {
+                for (int col = 0; col < size; col++) {
                     cells[row][col] = cellsRecvBuff[row * size + col];
                     pollution[row][col] = pollutionRecvBuff[row * size + col];
                 }
@@ -112,26 +114,33 @@ void LifeParallelImplementation::afterLastStep() {
         if (processID == noProcesses - 1) {
             int* additionalCells = new int[additionalDataRows * size];
             int* additionalPollution = new int[additionalDataRows * size];
-            for (int row = startOfPartition; row < endOfPartition; row++) {
-                for (int col = 1; col < size_1; col++) {
-                    if (row < endOfPartition - additionalDataRows) {
-                        cellsToSend[row * size + col] = cells[row][col];
-                        pollutionToSend[row * size + col] = pollution[row][col];
-                    } else {
-                        additionalCells[row * size + col] = cells[row][col];
-                        additionalPollution[row * size + col] = pollution[row][col];
-                    }
+
+            int idx = 0;
+            for (int row = startOfPartition; row < endOfPartition - additionalDataRows; row++) {
+                for (int col = 0; col < size; col++) {
+                        cellsToSend[idx * size + col] = cells[row][col];
+                        pollutionToSend[idx * size + col] = pollution[row][col];
                 }
+                idx++;
+            }
+            idx = 0;
+            for (int row = endOfPartition - additionalDataRows; row < endOfPartition; row++) {
+                for (int col = 0; col < size; col++) {
+                        additionalCells[idx * size + col] = cells[row][col];
+                        additionalPollution[idx * size + col] = pollution[row][col];
+                }
+                idx++;
             }
             MPI_Send(additionalCells, additionalDataRows * size, MPI_INT, 0, 50, MPI_COMM_WORLD);
             MPI_Send(additionalPollution, additionalDataRows * size, MPI_INT, 0, 60, MPI_COMM_WORLD);
         } else {
-            std::cout << "PROCESS ID: " << processID << " HI " << "\n";
+            int idx = 0;
             for (int row = startOfPartition; row < endOfPartition; row++) {
-                for (int col = 1; col < size_1; col++) {
-                    cellsToSend[row * size + col] = cells[row][col];
-                    pollutionToSend[row * size + col] = pollution[row][col];
+                for (int col = 0; col < size; col++) {
+                    cellsToSend[idx * size + col] = cells[row][col];
+                    pollutionToSend[idx * size + col] = pollution[row][col];
                 }
+                idx++;
             }
         }
         int* cellsRecvBuff = new int[size * size - (additionalDataRows * size)];
@@ -148,18 +157,21 @@ void LifeParallelImplementation::afterLastStep() {
 
         MPI_Gather(cellsToSend, size * sizeOfPartition, MPI_INT, cellsRecvBuff, size * sizeOfPartition, MPI_INT, 0, MPI_COMM_WORLD);
         MPI_Gather(pollutionToSend, size * sizeOfPartition, MPI_INT, pollutionRecvBuff, size * sizeOfPartition, MPI_INT, 0, MPI_COMM_WORLD);
-
+        
         if (processID == 0) {
-            for (int row = 0; row < size; row++) {
-                for (int col = 0; col < size; row++) {
-                    if (row * size + col < size * size - (additionalDataRows * size)){
+            for (int row = 0; row < size - additionalDataRows; row++) {
+                for (int col = 0; col < size; col++) {
                         cells[row][col] = cellsRecvBuff[row * size + col];
                         pollution[row][col] = pollutionRecvBuff[row * size + col];
-                    } else {
-                        cells[row][col] = additionalCellsRecvBuff[row * size + col];
-                        pollution[row][col] = additionalPollutionRecvBuff[row * size + col];
-                    }
                 }
+            }
+            int idx = 0;
+            for (int row = size - additionalDataRows; row < size; row++) {
+                for (int col = 0; col < size; col++) {
+                        cells[row][col] = additionalCellsRecvBuff[idx * size + col];
+                        pollution[row][col] = additionalPollutionRecvBuff[idx * size + col];
+                }
+                idx++;
             }
         }
     }
@@ -180,9 +192,9 @@ void LifeParallelImplementation::exchangeBorders() {
 
         for (int i = 0; i < sizeCells + sizePollution; i++) {
             if (i < sizeCells)
-                cells[endOfPartition + 1][i] = buff[i];
+                cells[endOfPartition][i] = buff[i];
             else
-                pollution[endOfPartition + 1][i] = buff[i];
+                pollution[endOfPartition][i] = buff[i];
         }
         delete[] buff;
 
@@ -200,9 +212,9 @@ void LifeParallelImplementation::exchangeBorders() {
 
         for (int i = 0; i < sizeCells + sizePollution; i++) {
             if (i < sizeCells)
-                cells[startOfPartition - 1][i] = buff[i];
+                cells[startOfPartition][i] = buff[i];
             else
-                pollution[startOfPartition - 1][i] = buff[i];
+                pollution[startOfPartition][i] = buff[i];
         }
         delete[] buff;
 
@@ -226,16 +238,16 @@ void LifeParallelImplementation::exchangeBorders() {
 
         for (int i = 0; i < sizeCells + sizePollution; i++) {
             if (i < sizeCells)
-                cells[endOfPartition + 1][i] = rightBuff[i];
+                cells[endOfPartition][i] = rightBuff[i];
             else
-                pollution[endOfPartition + 1][i] = rightBuff[i];
+                pollution[endOfPartition][i] = rightBuff[i];
         }
 
         for (int i = 0; i < sizeCells + sizePollution; i++) {
             if (i < sizeCells)
-                cells[startOfPartition - 1][i] = leftBuff[i];
+                cells[startOfPartition][i] = leftBuff[i];
             else
-                pollution[startOfPartition - 1][i] = leftBuff[i];
+                pollution[startOfPartition][i] = leftBuff[i];
         }
         delete[] rightBuff;
         delete[] leftBuff;
