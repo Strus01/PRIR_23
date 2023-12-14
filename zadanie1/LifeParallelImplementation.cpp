@@ -10,7 +10,22 @@ void LifeParallelImplementation::realStep()
 {
     int currentState, currentPollution;
 
-    for (int row = startOfPartition + 1; row < endOfPartition - 1; row++) {
+    int start;
+    int end;
+
+    if (processID == 0) {
+        start = startOfPartition + 1;
+        end = endOfPartition;
+    } 
+    else if (processID == noProcesses - 1) {
+        start = startOfPartition;
+        end = endOfPartition - 1;
+    } else {
+        start = startOfPartition;
+        end = endOfPartition;
+    }
+
+    for (int row = start; row < end; row++) {
         for (int col = 1; col < size_1; col++) {
             currentState = cells[row][col];
             currentPollution = pollution[row][col];
@@ -65,10 +80,12 @@ void LifeParallelImplementation::beforeFirstStep() {
 
     writeVectorToMatrix(flattenedCells, cells, size, 0, size);
     writeVectorToMatrix(flattenedPollution, pollution, size, 0, size);
-
 }
 
 void LifeParallelImplementation::afterLastStep() {
+    // std::cout << "PROCESS ID: " << processID << " startOfPartition: " << startOfPartition << "\n";
+    // std::cout << "PROCESS ID: " << processID << " endOfPartition: " << endOfPartition << "\n";
+
     int* cellsToSend;
     int* pollutionToSend;
 
@@ -95,8 +112,8 @@ void LifeParallelImplementation::afterLastStep() {
             int* additionalCells = flattenMatrix(cells, size, endOfPartition - additionalDataRows, endOfPartition);
             int* additionalPollution = flattenMatrix(pollution, size, endOfPartition - additionalDataRows, endOfPartition);
 
-            MPI_Send(&(additionalCells[0]), additionalDataRows * size, MPI_INT, 0, 1, MPI_COMM_WORLD);
-            MPI_Send(&(additionalPollution[0]), additionalDataRows * size, MPI_INT, 0, 2, MPI_COMM_WORLD);
+            MPI_Send(&(additionalCells[0]), size * additionalDataRows, MPI_INT, 0, 1, MPI_COMM_WORLD);
+            MPI_Send(&(additionalPollution[0]), size * additionalDataRows, MPI_INT, 0, 2, MPI_COMM_WORLD);
 
         } else {
             cellsToSend = flattenMatrix(cells, size, startOfPartition, endOfPartition);
@@ -142,14 +159,14 @@ void LifeParallelImplementation::exchangeBorders() {
         int* pollutionBorder = pollution[startOfPartition];
         int* mergedBorders = mergeArrays(cellsBorder, size, pollutionBorder, size);
 
-        exchangeMergedBorders(mergedBorders, mergedBordersSize, processID - 1, startOfPartition);
+        exchangeMergedBorders(mergedBorders, mergedBordersSize, processID - 1, startOfPartition - 1);
 
     } else {
         int* cellsLeftBorder = cells[startOfPartition];
         int* pollutionLeftBorder = pollution[startOfPartition];
         int* mergedLeftBorders = mergeArrays(cellsLeftBorder, size, pollutionLeftBorder, size);
 
-        exchangeMergedBorders(mergedLeftBorders, mergedBordersSize, processID - 1, startOfPartition);
+        exchangeMergedBorders(mergedLeftBorders, mergedBordersSize, processID - 1, startOfPartition - 1);
 
         int* cellsRightBorder = cells[endOfPartition];
         int* pollutionRightBorder = pollution[endOfPartition];
