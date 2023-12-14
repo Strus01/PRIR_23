@@ -83,9 +83,6 @@ void LifeParallelImplementation::beforeFirstStep() {
 }
 
 void LifeParallelImplementation::afterLastStep() {
-    // std::cout << "PROCESS ID: " << processID << " startOfPartition: " << startOfPartition << "\n";
-    // std::cout << "PROCESS ID: " << processID << " endOfPartition: " << endOfPartition << "\n";
-
     int* cellsToSend;
     int* pollutionToSend;
 
@@ -148,8 +145,8 @@ void LifeParallelImplementation::exchangeBorders() {
     int mergedBordersSize = size * 2;
     
     if (processID == 0) {
-        int* cellsBorder = cells[endOfPartition];
-        int* pollutionBorder = pollution[endOfPartition];
+        int* cellsBorder = cells[endOfPartition - 1];
+        int* pollutionBorder = pollution[endOfPartition - 1];
         int* mergedBorders = mergeArrays(cellsBorder, size, pollutionBorder, size);
 
         exchangeMergedBorders(mergedBorders, mergedBordersSize, processID + 1, endOfPartition);
@@ -168,8 +165,8 @@ void LifeParallelImplementation::exchangeBorders() {
 
         exchangeMergedBorders(mergedLeftBorders, mergedBordersSize, processID - 1, startOfPartition - 1);
 
-        int* cellsRightBorder = cells[endOfPartition];
-        int* pollutionRightBorder = pollution[endOfPartition];
+        int* cellsRightBorder = cells[endOfPartition - 1];
+        int* pollutionRightBorder = pollution[endOfPartition - 1];
         int* mergedRightBorders = mergeArrays(cellsRightBorder, size, pollutionRightBorder, size);
 
         exchangeMergedBorders(mergedRightBorders, mergedBordersSize, processID + 1, endOfPartition);
