@@ -29,11 +29,9 @@ void LifeParallelImplementation::realStep()
 
 void LifeParallelImplementation::oneStep()
 {
-    MPI_Barrier(MPI_COMM_WORLD);
     exchangeBorders();
     realStep();
     swapTables();
-
 }
 
 int LifeParallelImplementation::numberOfLivingCells() {
@@ -59,205 +57,157 @@ void LifeParallelImplementation::beforeFirstStep() {
         }
     }
 
-    int *flattenedCells = new int[size * size];
-    int *flattenedPollution = new int[size * size];
+    int* flattenedCells = flattenMatrix(cells, size, 0, size);
+    int* flattenedPollution = flattenMatrix(pollution, size, 0, size);
 
-    if (processID == 0) {
-        for (int row = 0; row < size; row++) {
-            for (int col = 0; col < size; col++) {
-                flattenedCells[row * size + col] = cells[row][col];
-                flattenedPollution[row * size + col] = pollution[row][col];
-            }
-        }
-        MPI_Bcast(flattenedCells, size * size, MPI_INT, 0, MPI_COMM_WORLD);
-        MPI_Bcast(flattenedPollution, size * size, MPI_INT, 0, MPI_COMM_WORLD);
-    } else {
-        MPI_Bcast(flattenedCells, size * size, MPI_INT, 0, MPI_COMM_WORLD);
-        MPI_Bcast(flattenedPollution, size * size, MPI_INT, 0, MPI_COMM_WORLD);
-    }
+    MPI_Bcast(&(flattenedCells[0]), size * size, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&(flattenedPollution[0]), size * size, MPI_INT, 0, MPI_COMM_WORLD);
 
-    for (int row = 0; row < size; row++) {
-        for (int col = 0; col < size; col++) {
-            cells[row][col] = flattenedCells[row * size + col];
-            pollution[row][col] = flattenedPollution[row * size + col];
-        }
-    }
+    writeVectorToMatrix(flattenedCells, cells, size, 0, size);
+    writeVectorToMatrix(flattenedPollution, pollution, size, 0, size);
+
 }
 
 void LifeParallelImplementation::afterLastStep() {
-    int* cellsToSend = new int[size * sizeOfPartition];
-    int* pollutionToSend = new int[size * sizeOfPartition];
+    int* cellsToSend;
+    int* pollutionToSend;
 
     if (additionalDataRows == 0) {
+        cellsToSend = flattenMatrix(cells, size, startOfPartition, endOfPartition);
+        pollutionToSend = flattenMatrix(pollution, size, startOfPartition, endOfPartition);
+
         int* cellsRecvBuff = new int[size * size];
         int* pollutionRecvBuff = new int[size * size];
-        int idx = 0;
-        for (int row = startOfPartition; row < endOfPartition; row++) {
-            for (int col = 0; col < size; col++) {
-                cellsToSend[idx * size + col] = cells[row][col];
-                pollutionToSend[idx * size + col] = pollution[row][col];
-            }
-            idx++;
-        }
         
-        MPI_Gather(cellsToSend, size * sizeOfPartition, MPI_INT, cellsRecvBuff, size * sizeOfPartition, MPI_INT, 0, MPI_COMM_WORLD);
-        MPI_Gather(pollutionToSend, size * sizeOfPartition, MPI_INT, pollutionRecvBuff, size * sizeOfPartition, MPI_INT, 0, MPI_COMM_WORLD);
+        MPI_Gather(&(cellsToSend[0]), size * sizeOfPartition, MPI_INT, cellsRecvBuff, size * sizeOfPartition, MPI_INT, 0, MPI_COMM_WORLD);
+        MPI_Gather(&(pollutionToSend[0]), size * sizeOfPartition, MPI_INT, pollutionRecvBuff, size * sizeOfPartition, MPI_INT, 0, MPI_COMM_WORLD);
         
         if (processID == 0) {
-            for (int row = 0; row < size; row++) {
-                for (int col = 0; col < size; col++) {
-                    cells[row][col] = cellsRecvBuff[row * size + col];
-                    pollution[row][col] = pollutionRecvBuff[row * size + col];
-                }
-            }
+            writeVectorToMatrix(cellsRecvBuff, cells, size, 0, size);
+            writeVectorToMatrix(pollutionRecvBuff, pollution, size, 0, size);
         }
+
     } else {
         if (processID == noProcesses - 1) {
-            int* additionalCells = new int[additionalDataRows * size];
-            int* additionalPollution = new int[additionalDataRows * size];
+            cellsToSend = flattenMatrix(cells, size, startOfPartition, endOfPartition - additionalDataRows);
+            pollutionToSend = flattenMatrix(pollution, size, startOfPartition, endOfPartition - additionalDataRows);
+            
+            int* additionalCells = flattenMatrix(cells, size, endOfPartition - additionalDataRows, endOfPartition);
+            int* additionalPollution = flattenMatrix(pollution, size, endOfPartition - additionalDataRows, endOfPartition);
 
-            int idx = 0;
-            for (int row = startOfPartition; row < endOfPartition - additionalDataRows; row++) {
-                for (int col = 0; col < size; col++) {
-                        cellsToSend[idx * size + col] = cells[row][col];
-                        pollutionToSend[idx * size + col] = pollution[row][col];
-                }
-                idx++;
-            }
-            idx = 0;
-            for (int row = endOfPartition - additionalDataRows; row < endOfPartition; row++) {
-                for (int col = 0; col < size; col++) {
-                        additionalCells[idx * size + col] = cells[row][col];
-                        additionalPollution[idx * size + col] = pollution[row][col];
-                }
-                idx++;
-            }
-            MPI_Send(additionalCells, additionalDataRows * size, MPI_INT, 0, 50, MPI_COMM_WORLD);
-            MPI_Send(additionalPollution, additionalDataRows * size, MPI_INT, 0, 60, MPI_COMM_WORLD);
+            MPI_Send(&(additionalCells[0]), additionalDataRows * size, MPI_INT, 0, 1, MPI_COMM_WORLD);
+            MPI_Send(&(additionalPollution[0]), additionalDataRows * size, MPI_INT, 0, 2, MPI_COMM_WORLD);
+
         } else {
-            int idx = 0;
-            for (int row = startOfPartition; row < endOfPartition; row++) {
-                for (int col = 0; col < size; col++) {
-                    cellsToSend[idx * size + col] = cells[row][col];
-                    pollutionToSend[idx * size + col] = pollution[row][col];
-                }
-                idx++;
-            }
+            cellsToSend = flattenMatrix(cells, size, startOfPartition, endOfPartition);
+            pollutionToSend = flattenMatrix(pollution, size, startOfPartition, endOfPartition);
         }
+
+        if (processID == 0) {
+            int* additionalCellsRecvBuff = new int[size * additionalDataRows];
+            int* additionalPollutionRecvBuff = new int[size * additionalDataRows];
+
+            MPI_Recv(&(additionalCellsRecvBuff[0]), size * additionalDataRows, MPI_INT, noProcesses - 1, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(&(additionalPollutionRecvBuff[0]), size * additionalDataRows, MPI_INT, noProcesses - 1, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+   
+            writeVectorToMatrix(additionalCellsRecvBuff, cells, size, size - additionalDataRows, size);
+            writeVectorToMatrix(additionalPollutionRecvBuff, pollution, size, size - additionalDataRows, size);
+        }
+        
         int* cellsRecvBuff = new int[size * size - (additionalDataRows * size)];
         int* pollutionRecvBuff = new int[size * size - (additionalDataRows * size)];
-        int* additionalCellsRecvBuff;
-        int* additionalPollutionRecvBuff;
-        
-        if (processID == 0) {
-            additionalCellsRecvBuff = new int[size * additionalDataRows];
-            additionalPollutionRecvBuff = new int[size * additionalDataRows];
-            MPI_Recv(additionalCellsRecvBuff, size * additionalDataRows, MPI_INT, noProcesses - 1, 50, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            MPI_Recv(additionalPollutionRecvBuff, size * additionalDataRows, MPI_INT, noProcesses - 1, 60, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        }
 
-        MPI_Gather(cellsToSend, size * sizeOfPartition, MPI_INT, cellsRecvBuff, size * sizeOfPartition, MPI_INT, 0, MPI_COMM_WORLD);
-        MPI_Gather(pollutionToSend, size * sizeOfPartition, MPI_INT, pollutionRecvBuff, size * sizeOfPartition, MPI_INT, 0, MPI_COMM_WORLD);
+        MPI_Gather(&(cellsToSend[0]), size * sizeOfPartition, MPI_INT, cellsRecvBuff, size * sizeOfPartition, MPI_INT, 0, MPI_COMM_WORLD);
+        MPI_Gather(&(pollutionToSend[0]), size * sizeOfPartition, MPI_INT, pollutionRecvBuff, size * sizeOfPartition, MPI_INT, 0, MPI_COMM_WORLD);
         
         if (processID == 0) {
-            for (int row = 0; row < size - additionalDataRows; row++) {
-                for (int col = 0; col < size; col++) {
-                        cells[row][col] = cellsRecvBuff[row * size + col];
-                        pollution[row][col] = pollutionRecvBuff[row * size + col];
-                }
-            }
-            int idx = 0;
-            for (int row = size - additionalDataRows; row < size; row++) {
-                for (int col = 0; col < size; col++) {
-                        cells[row][col] = additionalCellsRecvBuff[idx * size + col];
-                        pollution[row][col] = additionalPollutionRecvBuff[idx * size + col];
-                }
-                idx++;
-            }
+            writeVectorToMatrix(cellsRecvBuff, cells, size, 0, size - additionalDataRows);
+            writeVectorToMatrix(pollutionRecvBuff, pollution, size, 0, size - additionalDataRows);
         }
     }
 }
 
 void LifeParallelImplementation::exchangeBorders() {
+    int mergedBordersSize = size * 2;
+    
     if (processID == 0) {
-        int *cellsBorder = cells[endOfPartition];
-        int *pollutionBorder = pollution[endOfPartition];
-        int* mergedArray = mergeArrays(cellsBorder, size, pollutionBorder, size);
+        int* cellsBorder = cells[endOfPartition];
+        int* pollutionBorder = pollution[endOfPartition];
+        int* mergedBorders = mergeArrays(cellsBorder, size, pollutionBorder, size);
 
-        int* buff = new int[2 * size];
-
-        MPI_Sendrecv(mergedArray,  2 * size, MPI_INT, processID + 1, 100,
-                     buff, 2 * size, MPI_INT, processID + 1, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-        for (int i = 0; i < 2 * size; i++) {
-            if (i < size)
-                cells[endOfPartition][i] = buff[i];
-            else
-                pollution[endOfPartition][i] = buff[i];
-        }
-        delete[] buff;
+        exchangeMergedBorders(mergedBorders, mergedBordersSize, processID + 1, endOfPartition);
 
     } else if (processID == noProcesses - 1) {
-        int *cellsBorder = cells[startOfPartition];
-        int *pollutionBorder = pollution[startOfPartition];
-        int* mergedArray = mergeArrays(cellsBorder, size, pollutionBorder, size);
+        int* cellsBorder = cells[startOfPartition];
+        int* pollutionBorder = pollution[startOfPartition];
+        int* mergedBorders = mergeArrays(cellsBorder, size, pollutionBorder, size);
 
-        int* buff = new int[2 * size];
-
-        MPI_Sendrecv(mergedArray, 2 * size, MPI_INT, processID - 1, 100,
-                     buff, 2 * size, MPI_INT, processID - 1, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-        for (int i = 0; i < 2 * size; i++) {
-            if (i < size)
-                cells[startOfPartition][i] = buff[i];
-            else
-                pollution[startOfPartition][i] = buff[i];
-        }
-        delete[] buff;
+        exchangeMergedBorders(mergedBorders, mergedBordersSize, processID - 1, startOfPartition);
 
     } else {
-        int *cellsRightBorder = cells[endOfPartition];
-        int *cellsLeftBorder = cells[startOfPartition];
-        int *pollutionRightBorder = pollution[endOfPartition];
-        int *pollutionLeftBorder = pollution[startOfPartition];
-        int* mergedLeftArray = mergeArrays(cellsRightBorder, size, pollutionRightBorder, size);
-        int* mergedRightArray = mergeArrays(cellsLeftBorder, size, pollutionLeftBorder, size);
+        int* cellsLeftBorder = cells[startOfPartition];
+        int* pollutionLeftBorder = pollution[startOfPartition];
+        int* mergedLeftBorders = mergeArrays(cellsLeftBorder, size, pollutionLeftBorder, size);
 
-        int* leftBuff = new int[2 * size];
-        int* rightBuff = new int[2 * size];
+        exchangeMergedBorders(mergedLeftBorders, mergedBordersSize, processID - 1, startOfPartition);
 
-        MPI_Sendrecv(mergedLeftArray, 2 * size, MPI_INT, processID - 1, 100,
-                     leftBuff, 2 * size, MPI_INT, processID - 1, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Sendrecv(mergedRightArray, 2 * size, MPI_INT, processID + 1, 100,
-                     rightBuff, 2 * size, MPI_INT, processID + 1, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        int* cellsRightBorder = cells[endOfPartition];
+        int* pollutionRightBorder = pollution[endOfPartition];
+        int* mergedRightBorders = mergeArrays(cellsRightBorder, size, pollutionRightBorder, size);
 
-        for (int i = 0; i < 2 * size; i++) {
-            if (i < size)
-                cells[startOfPartition][i] = leftBuff[i];
-            else
-                pollution[startOfPartition][i] = leftBuff[i];
-        }
-        for (int i = 0; i < 2 * size; i++) {
-            if (i < size)
-                cells[endOfPartition][i] = rightBuff[i];
-            else
-                pollution[endOfPartition][i] = rightBuff[i];
-        }
-
-        delete[] leftBuff;
-        delete[] rightBuff;
+        exchangeMergedBorders(mergedRightBorders, mergedBordersSize, processID + 1, endOfPartition);
     }
+}
+
+void LifeParallelImplementation::exchangeMergedBorders(int* mergedBorders, int mergedBorderSize, int sendRecvProcessID, int borderIdx) {
+    int* buff = new int[mergedBorderSize];
+
+    MPI_Sendrecv(&(mergedBorders[0]), mergedBorderSize, MPI_INT, sendRecvProcessID, 100, buff, mergedBorderSize, MPI_INT, sendRecvProcessID, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+    for (int i = 0; i < mergedBorderSize; i++) {
+        if (i < mergedBorderSize / 2) {
+            cells[borderIdx][i] = buff[i];
+        } else {
+            pollution[borderIdx][i] = buff[i];
+        }
+    }
+
+    delete[] buff;
 }
 
 int* LifeParallelImplementation::mergeArrays(int* array1, int size1, int* array2, int size2) {
     int sizeMerged = size1 + size2;
     int* mergedArray = new int[sizeMerged];
 
-    for (int i = 0; i < size1; ++i) {
+    for (int i = 0; i < size1; i++) {
         mergedArray[i] = array1[i];
     }
-    for (int i = 0; i < size2; ++i) {
+    for (int i = 0; i < size2; i++) {
         mergedArray[size1 + i] = array2[i];
     }
+
     return mergedArray;
+}
+
+int* LifeParallelImplementation::flattenMatrix(int** matrix, int cols, int startRow, int endRow) {
+    int rows = endRow - startRow;
+    int* flattened = new int[rows * cols];
+
+    int index = 0;
+    for (int row = startRow; row < endRow; row++) {
+        for (int col = 0; col < cols; col++) {
+            flattened[index++] = matrix[row][col];
+        }
+    }
+
+    return flattened;
+}
+
+void LifeParallelImplementation::writeVectorToMatrix(int* vector, int** matrix, int cols, int startRow, int endRow) {
+    int index = 0;
+    for (int row = startRow; row < endRow; row++) {
+        for (int col = 0; col < cols; col++) {
+            matrix[row][col] = vector[index++];
+        }
+    }
 }
