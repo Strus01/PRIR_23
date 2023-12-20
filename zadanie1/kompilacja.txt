@@ -1,2 +1,2 @@
 mpiCC -O2 Alloc.cpp Life.cpp LifeSequentialImplementation.cpp Main.cpp Rules.cpp SimpleRules.cpp
-mpiCC -O2 Alloc.cpp Life.cpp LifeParallelImplementation.cpp Main.cpp Rules.cpp SimpleRules.cpp
+mpiCC -O2 Alloc.cpp Life.cpp LifeSequentialImplementation.cpp LifeParallelImplementation.cpp Main.cpp Rules.cpp SimpleRules.cpp

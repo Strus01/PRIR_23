@@ -1,7 +1,6 @@
 #include "LifeParallelImplementation.h"
 #include "mpi.h"
 #include <cmath>
-#include <stdlib.h>
 #include <iostream>
 
 LifeParallelImplementation::LifeParallelImplementation() {}
@@ -10,13 +9,12 @@ void LifeParallelImplementation::realStep()
 {
     int currentState, currentPollution;
 
-    int start;
-    int end;
+    int start, end;
 
     if (processID == 0) {
         start = startOfPartition + 1;
         end = endOfPartition;
-    } 
+    }
     else if (processID == noProcesses - 1) {
         start = startOfPartition;
         end = endOfPartition - 1;
@@ -24,27 +22,30 @@ void LifeParallelImplementation::realStep()
         start = startOfPartition;
         end = endOfPartition;
     }
+    std::cout << "PROCESS ID: " << processID << " start: " << start << "\n";
+    std::cout << "PROCESS ID: " << processID << " end: " << end << "\n";
+    std::cout << "PROCESS ID: " << processID << " startOfPartition: " << startOfPartition << "\n";
+    std::cout << "PROCESS ID: " << processID << " endOfPartition: " << endOfPartition << "\n";
+
 
     for (int row = start; row < end; row++) {
         for (int col = 1; col < size_1; col++) {
             currentState = cells[row][col];
             currentPollution = pollution[row][col];
+            cellsNext[row][col] = rules->cellNextState(currentState, liveNeighbours(row, col), currentPollution);
 
-            cellsNext[row][col] = rules->cellNextState(currentState,
-                                                       liveNeighbours(row, col),
-                                                       currentPollution);
-            pollutionNext[row][col] =
-                    rules->nextPollution(currentState,
-                                         currentPollution,
-                                         pollution[row + 1][col] + pollution[row - 1][col] + pollution[row][col - 1] + pollution[row][col + 1],
-                                         pollution[row - 1][col - 1] + pollution[row - 1][col + 1] + pollution[row + 1][col - 1] + pollution[row + 1][col + 1]);
+            int pollutionSumNN = pollution[row + 1][col] + pollution[row - 1][col] + pollution[row][col - 1] + pollution[row][col + 1];
+            int pollutionSumNNN = pollution[row - 1][col - 1] + pollution[row - 1][col + 1] + pollution[row + 1][col - 1] + pollution[row + 1][col + 1];
+            pollutionNext[row][col] = rules->nextPollution(currentState, currentPollution, pollutionSumNN, pollutionSumNNN);
         }
     }
 }
 
 void LifeParallelImplementation::oneStep()
 {
+    MPI_Barrier(MPI_COMM_WORLD);
     exchangeBorders();
+    MPI_Barrier(MPI_COMM_WORLD);
     realStep();
     swapTables();
 }
@@ -73,13 +74,14 @@ void LifeParallelImplementation::beforeFirstStep() {
     }
 
     int* flattenedCells = flattenMatrix(cells, size, 0, size);
-    int* flattenedPollution = flattenMatrix(pollution, size, 0, size);
-
     MPI_Bcast(&(flattenedCells[0]), size * size, MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&(flattenedPollution[0]), size * size, MPI_INT, 0, MPI_COMM_WORLD);
-
     writeVectorToMatrix(flattenedCells, cells, size, 0, size);
+    delete[] flattenedCells;
+
+    int* flattenedPollution = flattenMatrix(pollution, size, 0, size);
+    MPI_Bcast(&(flattenedPollution[0]), size * size, MPI_INT, 0, MPI_COMM_WORLD);
     writeVectorToMatrix(flattenedPollution, pollution, size, 0, size);
+    delete[] flattenedPollution;
 }
 
 void LifeParallelImplementation::afterLastStep() {
@@ -91,15 +93,27 @@ void LifeParallelImplementation::afterLastStep() {
         pollutionToSend = flattenMatrix(pollution, size, startOfPartition, endOfPartition);
 
         int* cellsRecvBuff = new int[size * size];
+        MPI_Gather(&(cellsToSend[0]), size * sizeOfPartition, MPI_INT, &(cellsRecvBuff[0]), size * sizeOfPartition, MPI_INT, 0, MPI_COMM_WORLD);
+        delete[] cellsToSend;
+
         int* pollutionRecvBuff = new int[size * size];
-        
-        MPI_Gather(&(cellsToSend[0]), size * sizeOfPartition, MPI_INT, cellsRecvBuff, size * sizeOfPartition, MPI_INT, 0, MPI_COMM_WORLD);
-        MPI_Gather(&(pollutionToSend[0]), size * sizeOfPartition, MPI_INT, pollutionRecvBuff, size * sizeOfPartition, MPI_INT, 0, MPI_COMM_WORLD);
-        
+        MPI_Gather(&(pollutionToSend[0]), size * sizeOfPartition, MPI_INT, &(pollutionRecvBuff[0]), size * sizeOfPartition, MPI_INT, 0, MPI_COMM_WORLD);
+        delete[] pollutionToSend;
+
         if (processID == 0) {
             writeVectorToMatrix(cellsRecvBuff, cells, size, 0, size);
             writeVectorToMatrix(pollutionRecvBuff, pollution, size, 0, size);
+
+            for(int i = 0; i < size; i++) {
+                for(int j = 0; j < size; j++) {
+                    std::cout<<pollution[i][j]<< " ";
+                }
+                std::cout<<std::endl;
+            }
         }
+
+        delete[] cellsRecvBuff;
+        delete[] pollutionRecvBuff;
 
     } else {
         if (processID == noProcesses - 1) {
@@ -107,10 +121,12 @@ void LifeParallelImplementation::afterLastStep() {
             pollutionToSend = flattenMatrix(pollution, size, startOfPartition, endOfPartition - additionalDataRows);
             
             int* additionalCells = flattenMatrix(cells, size, endOfPartition - additionalDataRows, endOfPartition);
-            int* additionalPollution = flattenMatrix(pollution, size, endOfPartition - additionalDataRows, endOfPartition);
-
             MPI_Send(&(additionalCells[0]), size * additionalDataRows, MPI_INT, 0, 1, MPI_COMM_WORLD);
+            delete[] additionalCells;
+
+            int* additionalPollution = flattenMatrix(pollution, size, endOfPartition - additionalDataRows, endOfPartition);
             MPI_Send(&(additionalPollution[0]), size * additionalDataRows, MPI_INT, 0, 2, MPI_COMM_WORLD);
+            delete[] additionalPollution;
 
         } else {
             cellsToSend = flattenMatrix(cells, size, startOfPartition, endOfPartition);
@@ -119,25 +135,31 @@ void LifeParallelImplementation::afterLastStep() {
 
         if (processID == 0) {
             int* additionalCellsRecvBuff = new int[size * additionalDataRows];
-            int* additionalPollutionRecvBuff = new int[size * additionalDataRows];
-
             MPI_Recv(&(additionalCellsRecvBuff[0]), size * additionalDataRows, MPI_INT, noProcesses - 1, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            MPI_Recv(&(additionalPollutionRecvBuff[0]), size * additionalDataRows, MPI_INT, noProcesses - 1, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-   
             writeVectorToMatrix(additionalCellsRecvBuff, cells, size, size - additionalDataRows, size);
-            writeVectorToMatrix(additionalPollutionRecvBuff, pollution, size, size - additionalDataRows, size);
-        }
-        
-        int* cellsRecvBuff = new int[size * size - (additionalDataRows * size)];
-        int* pollutionRecvBuff = new int[size * size - (additionalDataRows * size)];
+            delete[] additionalCellsRecvBuff;
 
-        MPI_Gather(&(cellsToSend[0]), size * sizeOfPartition, MPI_INT, cellsRecvBuff, size * sizeOfPartition, MPI_INT, 0, MPI_COMM_WORLD);
-        MPI_Gather(&(pollutionToSend[0]), size * sizeOfPartition, MPI_INT, pollutionRecvBuff, size * sizeOfPartition, MPI_INT, 0, MPI_COMM_WORLD);
-        
+            int* additionalPollutionRecvBuff = new int[size * additionalDataRows];
+            MPI_Recv(&(additionalPollutionRecvBuff[0]), size * additionalDataRows, MPI_INT, noProcesses - 1, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            writeVectorToMatrix(additionalPollutionRecvBuff, pollution, size, size - additionalDataRows, size);
+            delete[] additionalPollutionRecvBuff;
+        }
+    
+        int* cellsRecvBuff = new int[size * size - (additionalDataRows * size)];
+        MPI_Gather(&(cellsToSend[0]), size * sizeOfPartition, MPI_INT, &(cellsRecvBuff[0]), size * sizeOfPartition, MPI_INT, 0, MPI_COMM_WORLD);
+        delete[] cellsToSend;
+
+        int* pollutionRecvBuff = new int[size * size - (additionalDataRows * size)];
+        MPI_Gather(&(pollutionToSend[0]), size * sizeOfPartition, MPI_INT, &(pollutionRecvBuff[0]), size * sizeOfPartition, MPI_INT, 0, MPI_COMM_WORLD);
+        delete[] pollutionToSend;
+
         if (processID == 0) {
             writeVectorToMatrix(cellsRecvBuff, cells, size, 0, size - additionalDataRows);
             writeVectorToMatrix(pollutionRecvBuff, pollution, size, 0, size - additionalDataRows);
         }
+
+        delete[] cellsRecvBuff;
+        delete[] pollutionRecvBuff;
     }
 }
 
@@ -176,7 +198,8 @@ void LifeParallelImplementation::exchangeBorders() {
 void LifeParallelImplementation::exchangeMergedBorders(int* mergedBorders, int mergedBorderSize, int sendRecvProcessID, int borderIdx) {
     int* buff = new int[mergedBorderSize];
 
-    MPI_Sendrecv(&(mergedBorders[0]), mergedBorderSize, MPI_INT, sendRecvProcessID, 100, buff, mergedBorderSize, MPI_INT, sendRecvProcessID, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Sendrecv(&(mergedBorders[0]), mergedBorderSize, MPI_INT, sendRecvProcessID, 100,
+                 &(buff[0]), mergedBorderSize, MPI_INT, sendRecvProcessID, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
     for (int i = 0; i < mergedBorderSize; i++) {
         if (i < mergedBorderSize / 2) {
@@ -185,11 +208,11 @@ void LifeParallelImplementation::exchangeMergedBorders(int* mergedBorders, int m
             pollution[borderIdx][i] = buff[i];
         }
     }
-
+    delete[] mergedBorders;
     delete[] buff;
 }
 
-int* LifeParallelImplementation::mergeArrays(int* array1, int size1, int* array2, int size2) {
+int* LifeParallelImplementation::mergeArrays(const int* array1, int size1, const int* array2, int size2) {
     int sizeMerged = size1 + size2;
     int* mergedArray = new int[sizeMerged];
 
@@ -217,7 +240,7 @@ int* LifeParallelImplementation::flattenMatrix(int** matrix, int cols, int start
     return flattened;
 }
 
-void LifeParallelImplementation::writeVectorToMatrix(int* vector, int** matrix, int cols, int startRow, int endRow) {
+void LifeParallelImplementation::writeVectorToMatrix(const int* vector, int** matrix, int cols, int startRow, int endRow) {
     int index = 0;
     for (int row = startRow; row < endRow; row++) {
         for (int col = 0; col < cols; col++) {
