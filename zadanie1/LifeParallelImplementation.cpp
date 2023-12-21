@@ -22,11 +22,6 @@ void LifeParallelImplementation::realStep()
         start = startOfPartition;
         end = endOfPartition;
     }
-    std::cout << "PROCESS ID: " << processID << " start: " << start << "\n";
-    std::cout << "PROCESS ID: " << processID << " end: " << end << "\n";
-    std::cout << "PROCESS ID: " << processID << " startOfPartition: " << startOfPartition << "\n";
-    std::cout << "PROCESS ID: " << processID << " endOfPartition: " << endOfPartition << "\n";
-
 
     for (int row = start; row < end; row++) {
         for (int col = 1; col < size_1; col++) {
@@ -103,13 +98,6 @@ void LifeParallelImplementation::afterLastStep() {
         if (processID == 0) {
             writeVectorToMatrix(cellsRecvBuff, cells, size, 0, size);
             writeVectorToMatrix(pollutionRecvBuff, pollution, size, 0, size);
-
-            for(int i = 0; i < size; i++) {
-                for(int j = 0; j < size; j++) {
-                    std::cout<<pollution[i][j]<< " ";
-                }
-                std::cout<<std::endl;
-            }
         }
 
         delete[] cellsRecvBuff;
@@ -200,13 +188,13 @@ void LifeParallelImplementation::exchangeMergedBorders(int* mergedBorders, int m
 
     MPI_Sendrecv(&(mergedBorders[0]), mergedBorderSize, MPI_INT, sendRecvProcessID, 100,
                  &(buff[0]), mergedBorderSize, MPI_INT, sendRecvProcessID, 100, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-    for (int i = 0; i < mergedBorderSize; i++) {
-        if (i < mergedBorderSize / 2) {
-            cells[borderIdx][i] = buff[i];
-        } else {
-            pollution[borderIdx][i] = buff[i];
-        }
+    
+    for (int i = 0; i < size; i++) {
+        cells[borderIdx][i] = buff[i];
+    }
+    
+    for (int i = 0; i < size; i++) {
+            pollution[borderIdx][i] = buff[size + i];
     }
     delete[] mergedBorders;
     delete[] buff;
