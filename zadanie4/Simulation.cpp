@@ -26,7 +26,6 @@ void Simulation::initialize(DataSupplier *supplier) {
 	particles = supplier->points();
 	allocateMemory();
 
-    #pragma omp parallel for
 	for (int idx = 0; idx < particles; idx++) {
 		x[idx] = supplier->x(idx);
 		y[idx] = supplier->y(idx);
@@ -51,19 +50,18 @@ void Simulation::step() {
 	if (molecularStatic)
 		preventMoveAgainstForce();
 }
-// możliwe zrównoleglenie
+
 void Simulation::updateVelocity() {
 
 	double oldFx, oldFy;
 	double dx, dy, distance, frc;
 
-//    #pragma omp parallel for private(oldFx, oldFy, dx, dy, distance, frc) shared(Fx, Fy, Vx, Vy, x, y, m) schedule(static)
+    #pragma omp parallel for private(oldFx, oldFy, dx, dy, distance, frc)
 	for (int idx = 0; idx < particles; idx++) {
 		oldFx = Fx[idx];
 		oldFy = Fy[idx];
 		Fx[idx] = Fy[idx] = 0.0;
 
-//        #pragma omp parallel for reduction(+:Fx, Fy)
 		for (int idx2 = 0; idx2 < idx; idx2++) {
 			dx = x[idx2] - x[idx];
 			dy = y[idx2] - y[idx];
@@ -76,7 +74,6 @@ void Simulation::updateVelocity() {
 			Fy[idx] += frc * dy / distance;
 		}
 
-//        #pragma omp parallel for reduction(+:Fx, Fy)
 		for (int idx2 = idx+1; idx2 < particles; idx2++) {
 			dx = x[idx2] - x[idx];
 			dy = y[idx2] - y[idx];
@@ -92,41 +89,33 @@ void Simulation::updateVelocity() {
 		Vy[idx] += dt_2 * (Fy[idx] + oldFy) / m[idx];
 	}
 }
-// możliwe zrównoleglenie
+
 void Simulation::updatePosition() {
-    #pragma omp parallel for
 	for (int idx = 0; idx < particles; idx++) {
 		x[idx] += dt * (Vx[idx] + dt_2 * Fx[idx] / m[idx]);
 		y[idx] += dt * (Vy[idx] + dt_2 * Fy[idx] / m[idx]);
 	}
 }
-// możliwe zrównoleglenie
+
 void Simulation::preventMoveAgainstForce() {
 	double dotProduct;
 
-    #pragma omp parallel for
 	for (int idx = 0; idx < particles; idx++) {
 		dotProduct = Vx[idx] * Fx[idx] + Vy[idx] * Fy[idx];
-		if (dotProduct < 0.0) {
-        #pragma omp critical
-        {
-            Vx[idx] = Vy[idx] = { 0.0 };
-        }
-		}
+        Vx[idx] = Vy[idx] = { 0.0 };
 	}
 }
-// możliwe zrównoleglenie
+
 double Simulation::Ekin() {
 	double ek = 0.0;
 
-    #pragma omp parallel for reduction(+:ek)
 	for (int idx = 0; idx < particles; idx++) {
 		ek += m[idx] * (Vx[idx] * Vx[idx] + Vy[idx] * Vy[idx]) * 0.5;
 	}
 
 	return ek;
 }
-// możliwe zrównoleglenie
+
 void Simulation::pairDistribution(double *histogram, int size, double coef) {
 	for (int i = 0; i < size; i++)
 		histogram[i] = 0;
@@ -156,17 +145,16 @@ void Simulation::pairDistribution(double *histogram, int size, double coef) {
 		histogram[i] *= 1.0 / (2.0 * M_PI * distance * coef);
 	}
 }
-// możliwe zrównoleglenie
+
 double Simulation::avgMinDistance() {
 	double sum = { };
 
-    #pragma omp parallel for reduction(+:sum)
 	for (int i = 0; i < particles; i++)
 		sum += minDistance(i);
 
 	return sum / particles;
 }
-// możliwe zrównoleglenie
+
 double Simulation::minDistance(int idx) {
 	double dSqMin = 10000000.0;
 	double dx, dy, distanceSQ;
