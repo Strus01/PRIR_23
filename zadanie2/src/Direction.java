@@ -3,7 +3,7 @@
  */
 public enum Direction {
     /**
-     * Na pĂłĹnoc
+     * Na północ
      */
     NORTH {
         @Override
@@ -12,7 +12,7 @@ public enum Direction {
         }
     },
     /**
-     * Na poĹudnie
+     * Na południe
      */
     SOUTH {
         @Override
@@ -21,7 +21,7 @@ public enum Direction {
         }
     },
     /**
-     * Na wschĂłd
+     * Na wschód
      */
     EAST {
         @Override
@@ -31,7 +31,7 @@ public enum Direction {
 
     },
     /**
-     * Na zachĂłd
+     * Na zachód
      */
     WEST {
         @Override
@@ -41,10 +41,10 @@ public enum Direction {
     };
 
     /**
-     * Zwraca poĹoĹźenie po wykonaniu ruchu w danym kierunku
+     * Zwraca połoźenie po wykonaniu ruchu w danym kierunku
      *
-     * @param currentLocation aktualne poĹoĹźenie
-     * @return nastÄpne poĹoĹźenie
+     * @param currentLocation aktualne połoźenie
+     * @return następne połoźenie
      */
     abstract public Location step(Location currentLocation);
 }

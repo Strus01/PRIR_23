@@ -1,19 +1,18 @@
 /**
- * MoĹźliwe typy lokacji znajdujÄcych siÄ w labiryncie.
+ * Możliwe typy lokacji znajdujących się w labiryncie.
  */
 public enum LocationType {
     /**
-     * Ĺciana. Odebranie tego typu lokacji oznacza niestety poraĹźkÄ. Program
-     * Ĺşle przetwarzaĹ otrzymywane wyniki i trafiĹ do wnÄtrza Ĺciany.
+     * Ściana. Odebranie tego typu lokacji oznacza niestety porażkę.
+     * Program źle przetwarzał otrzymywane wyniki i trafił do wnętrza ściany.
      */
     WALL,
     /**
-     * WyjĹcie z labiryntu. Sukces!
+     * Wyjście z labiryntu. Sukces!
      */
     EXIT,
     /**
-     * PrzejĹcie, generalnie pusta przestrzeĹ pozwalajÄca na przemieszczanie
-     * siÄ w labiryncie
+     * Przejście, generalnie pusta przestrzeń pozwalająca na przemieszczanie się w labiryncie
      */
     PASSAGE;
 }

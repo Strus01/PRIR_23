@@ -1,27 +1,25 @@
 import java.util.List;
 
 /**
- * Interfejs zleceniodawcy zadaĹ eksporacji labiryntu.
+ * Interfejs zleceniodawcy zadań eksporacji labiryntu.
  */
 public interface Employer {
     /**
-     * Metoda ustawia dostÄp do obiektu umoĹźliwiajÄcego zlecanie eksploracji
+     * Metoda ustawia dostęp do obiektu umożliwiającegocego zlecanie eksploracji
      * wskazanych lokacji labiryntu.
      *
-     * @param order narzÄdzie do eksploracji labiryntu
+     * @param order narzędzie do eksploracji labiryntu
      */
     public void setOrderInterface(OrderInterface order);
 
     /**
-     * Rozpoczyna siÄ poszukiwanie wyjĹcia. Do metody przekazywane jest poczÄtkowe
-     * poĹoĹźenie w labiryncie, od ktĂłrego zaczyna siÄ poszukiwanie. Wraz z
-     * poĹoĹźeniem przekazywana jest informacji o moĹźliwych kierunkach, w jakich
-     * moĹźna siÄ przemieĹciÄ. Metoda zostanie wykonana w innym wÄtku niĹź ten, ktĂłry
-     * wykonaĹ setOrderInterface.
+     Rozpoczyna się poszukiwanie wyjścia. Do metody przekazywane jest początkowe położenie w labiryncie,
+     od którego zaczyna się poszukiwanie. Wraz z położeniem przekazywana jest informacji o możliwych kierunkach,
+     w jakich można się przemieścić. Metoda zostanie wykonana w innym wątku niż ten, który wykonał setOrderInterface.
      *
      * @param startLocation     pozycja startowa
      * @param allowedDirections dozwolone kierunki dalszej ekspoloracji labiryntu
-     * @return poĹoĹźenie, w ktĂłrym znajduje siÄ wyjĹcie z labiryntu
+     * @return położenie, w którym znajduje się wyjście z labiryntu
      */
     public Location findExit(Location startLocation, List<Direction> allowedDirections);
 }

@@ -5,7 +5,7 @@ import java.util.List;
  */
 public interface Result {
     /**
-     * Numer zlecenia, ktĂłrego rezultat dotyczy
+     * Numer zlecenia, którego rezultat dotyczy
      *
      * @return numer zlecenia
      */
@@ -19,11 +19,11 @@ public interface Result {
     public LocationType type();
 
     /**
-     * MoĹźliwe kierunki ruchu z danej lokacji. Sensowna wartoĹÄ zwracana jest w
+     * Możliwe kierunki ruchu z danej lokacji. Sensowna wartość zwracana jest w
      * przypadku lokacji typu PASSAGE. W innych przypadkach zwracana jest pusta
      * lista. Wynik jest typu read-only.
      *
-     * @return lista kierunkĂłw
+     * @return lista kierunków
      */
     public List<Direction> allowedDirections();
 }
