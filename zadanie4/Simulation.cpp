@@ -91,6 +91,7 @@ void Simulation::updateVelocity() {
 }
 
 void Simulation::updatePosition() {
+    #pragma omp parallel for
 	for (int idx = 0; idx < particles; idx++) {
 		x[idx] += dt * (Vx[idx] + dt_2 * Fx[idx] / m[idx]);
 		y[idx] += dt * (Vy[idx] + dt_2 * Fy[idx] / m[idx]);
@@ -117,7 +118,8 @@ double Simulation::Ekin() {
 }
 
 void Simulation::pairDistribution(double *histogram, int size, double coef) {
-	for (int i = 0; i < size; i++)
+    #pragma omp parallel for
+    for (int i = 0; i < size; i++)
 		histogram[i] = 0;
 
 	const double maxDistanceSQ = size * coef * size * coef;
@@ -149,6 +151,7 @@ void Simulation::pairDistribution(double *histogram, int size, double coef) {
 double Simulation::avgMinDistance() {
 	double sum = { };
 
+    #pragma omp parallel for reduction(+:sum)
 	for (int i = 0; i < particles; i++)
 		sum += minDistance(i);
 
