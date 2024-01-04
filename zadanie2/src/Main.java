@@ -110,7 +110,8 @@ public class Main {
 
         employer.setOrderInterface(order);
 
-        Location startLocation = new Location(9, 7);
+//        Location startLocation = new Location(9, 7);
+        Location startLocation = new Location(7, 3);
         LocationType[][] labirynth = new LocationType[16][18];
 
 //        char[][] values = {
@@ -137,15 +138,15 @@ public class Main {
                 {'W', 'W', 'W', 'P', 'W', 'W', 'P', 'P', 'W', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'W'}, // 14
                 {'W', 'P', 'W', 'P', 'W', 'P', 'P', 'P', 'W', 'P', 'W', 'W', 'W', 'P', 'W', 'W', 'W', 'W'}, // 13
                 {'W', 'P', 'W', 'P', 'W', 'P', 'P', 'W', 'W', 'P', 'W', 'W', 'W', 'P', 'P', 'W', 'W', 'W'}, // 12
-                {'W', 'P', 'P', 'P', 'W', 'P', 'P', 'P', 'P', 'P', 'P', 'W', 'W', 'P', 'P', 'P', 'W', 'W'}, // 11
+                {'W', 'P', 'W', 'P', 'W', 'P', 'P', 'P', 'P', 'P', 'P', 'W', 'W', 'P', 'P', 'P', 'W', 'W'}, // 11
                 {'W', 'P', 'W', 'P', 'W', 'W', 'P', 'P', 'P', 'W', 'P', 'W', 'W', 'W', 'W', 'P', 'W', 'W'}, // 10
                 {'W', 'P', 'W', 'P', 'W', 'W', 'P', 'P', 'P', 'W', 'P', 'W', 'W', 'W', 'W', 'P', 'W', 'W'}, // 9
-                {'W', 'P', 'W', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'W', 'P', 'P', 'W', 'P', 'W', 'W'}, // 8
-                {'W', 'P', 'W', 'P', 'P', 'W', 'W', 'W', 'P', 'P', 'P', 'W', 'P', 'P', 'W', 'P', 'W', 'W'}, // 7
-                {'W', 'P', 'W', 'P', 'P', 'W', 'W', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'W', 'P', 'W', 'W'}, // 6
-                {'W', 'P', 'W', 'P', 'P', 'W', 'P', 'W', 'P', 'P', 'W', 'W', 'W', 'W', 'W', 'P', 'W', 'W'}, // 5
+                {'W', 'P', 'W', 'P', 'W', 'P', 'P', 'P', 'P', 'P', 'P', 'W', 'P', 'P', 'W', 'P', 'W', 'W'}, // 8
+                {'W', 'P', 'W', 'P', 'W', 'W', 'W', 'W', 'P', 'P', 'P', 'W', 'P', 'P', 'W', 'P', 'W', 'W'}, // 7
+                {'W', 'P', 'W', 'P', 'W', 'W', 'W', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'W', 'P', 'W', 'W'}, // 6
+                {'W', 'P', 'W', 'P', 'W', 'W', 'P', 'W', 'P', 'P', 'W', 'W', 'W', 'W', 'W', 'P', 'W', 'W'}, // 5
                 {'W', 'P', 'W', 'P', 'W', 'W', 'P', 'W', 'P', 'W', 'W', 'W', 'W', 'W', 'W', 'P', 'W', 'W'}, // 4
-                {'W', 'P', 'P', 'P', 'P', 'P', 'P', 'W', 'P', 'P', 'P', 'P', 'W', 'W', 'W', 'P', 'W', 'W'}, // 3
+                {'W', 'P', 'W', 'P', 'W', 'P', 'P', 'W', 'P', 'P', 'P', 'P', 'W', 'W', 'W', 'P', 'W', 'W'}, // 3
                 {'W', 'W', 'W', 'W', 'W', 'W', 'W', 'W', 'W', 'W', 'P', 'W', 'W', 'W', 'P', 'P', 'W', 'W'}, // 2
                 {'W', 'W', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'W'}, // 1
                 {'W', 'W', 'W', 'W', 'W', 'W', 'W', 'W', 'W', 'W', 'W', 'W', 'W', 'W', 'W', 'W', 'W', 'W'}  // 0
@@ -178,7 +179,8 @@ public class Main {
 
         order.setLabirynth(labirynth);
 
-        Location result = employer.findExit(startLocation, new ArrayList<Direction>(List.of(Direction.NORTH)));
+//        Location result = employer.findExit(startLocation, new ArrayList<Direction>(List.of(Direction.NORTH)));
+        Location result = employer.findExit(startLocation, new ArrayList<Direction>(List.of(Direction.WEST, Direction.EAST)));
         System.out.println("END RESULT: " + result);
 
         // print hashmap locationsOrdered

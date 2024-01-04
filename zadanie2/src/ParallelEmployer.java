@@ -31,51 +31,54 @@ public class ParallelEmployer implements Employer {
     private void findExitRecurrent(Location startLocation, List<Direction> allowedDirections) {
         List<Thread> threads = new ArrayList<>();
 
+        if (exitFound) { return; }
+
         for (var allowedDirection : allowedDirections) {
-            if (exitFound) { return; }
 
             Thread t = new Thread(() -> {
                 Location nextStep = allowedDirection.step(startLocation);
-                int orderID = 0;
-                synchronized (visited) {
-                    orderID = orderFindingExit(nextStep, orderID);
-                }
+                int orderID = orderFindingExit(nextStep);
+
                 if (orders.containsKey(orderID)) {
-                    synchronized (orders.get(orderID)) {
-                        Result res = getResult(orderID);
-                        if (res.type() == LocationType.EXIT) {
-                            exit = nextStep;
-                            exitFound = true;
-                        } else {
-                            findExitRecurrent(nextStep, res.allowedDirections());
-                        }
+                    Result result = getResult(orderID);
+                    if (result.type() == LocationType.EXIT) {
+                        exit = nextStep;
+                        exitFound = true;
+                    } else {
+                        findExitRecurrent(nextStep, result.allowedDirections());
                     }
                 }
             });
 
+            if (exitFound) { return; }
+
             t.start();
             threads.add(t);
         }
-
         joinThreads(threads);
     }
 
-    private int orderFindingExit(Location nextStep, int orderID) {
-        if (!visited.contains(nextStep)) {
-            visited.add(nextStep);
-            orderID = order.order(nextStep);
-            orders.put(orderID, new Object());
+    private int orderFindingExit(Location nextStep) {
+        int orderID = 0;
+        synchronized (visited) {
+            if (!visited.contains(nextStep)) {
+                visited.add(nextStep);
+                orderID = order.order(nextStep);
+                orders.put(orderID, new Object());
+            }
+            return orderID;
         }
-        return orderID;
     }
 
     private Result getResult(int orderID) {
-        try {
-            orders.get(orderID).wait();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+        synchronized (orders.get(orderID)) {
+            try {
+                orders.get(orderID).wait();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            return results.get(orderID);
         }
-        return results.get(orderID);
     }
 
     private static void joinThreads(List<Thread> threads) {
