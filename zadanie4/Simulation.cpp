@@ -99,17 +99,20 @@ void Simulation::updatePosition() {
 }
 
 void Simulation::preventMoveAgainstForce() {
-	double dotProduct;
-
-	for (int idx = 0; idx < particles; idx++) {
-		dotProduct = Vx[idx] * Fx[idx] + Vy[idx] * Fy[idx];
-        Vx[idx] = Vy[idx] = { 0.0 };
-	}
+    double dotProduct;
+    #pragma omp parallel for private(dotProduct)
+    for (int idx = 0; idx < particles; idx++) {
+        dotProduct = Vx[idx] * Fx[idx] + Vy[idx] * Fy[idx];
+        if (dotProduct < 0.0) {
+            Vx[idx] = Vy[idx] = { 0.0 };
+        }
+    }
 }
 
 double Simulation::Ekin() {
 	double ek = 0.0;
 
+    #pragma omp parallel for reduction(+:ek)
 	for (int idx = 0; idx < particles; idx++) {
 		ek += m[idx] * (Vx[idx] * Vx[idx] + Vy[idx] * Vy[idx]) * 0.5;
 	}
@@ -165,7 +168,6 @@ double Simulation::minDistance(int idx) {
 	double xx = x[idx];
 	double yy = y[idx];
 
-    #pragma omp parallel for reduction(min:dSqMin)
 	for (int i = 0; i < idx; i++) {
 		dx = xx - x[i];
 		dy = yy - y[i];
@@ -174,7 +176,6 @@ double Simulation::minDistance(int idx) {
 			dSqMin = distanceSQ;
 	}
 
-    #pragma omp parallel for reduction(min:dSqMin)
 	for (int i = idx + 1; i < particles; i++) {
 		dx = xx - x[i];
 		dy = yy - y[i];

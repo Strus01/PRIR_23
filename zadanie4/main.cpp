@@ -26,7 +26,7 @@ constexpr double HISTOGRAM_LENGTH_PER_BIN = 0.2;
 constexpr double DT = 0.02;
 constexpr double DISTANCE = 1.0;
 constexpr double MASS = 1.0;
-constexpr int STEPS = 40000;
+constexpr int STEPS = 400;
 constexpr int REPORT_PERIOD = 1;
 constexpr int PARTICLES_SQRT = 20;
 
@@ -65,9 +65,9 @@ void showReport(int step, Simulation *s, double *v) {
     s->pairDistribution(v, HISTOGRAM_SIZE, HISTOGRAM_LENGTH_PER_BIN);
     s->Ekin();
     s->avgMinDistance();
-    //cout << "Step: " << step << " Ekin = " << s->Ekin()
-    //		<< " <min(NNdistance)> = " << s->avgMinDistance() << endl;
-    //for (int j = 0; j < HISTOGRAM_SIZE; j++) {
-    //	cout << "v[" << j << "] = " << v[j] << endl;
-    //}
+    cout << "Step: " << step << " Ekin = " << s->Ekin()
+    		<< " <min(NNdistance)> = " << s->avgMinDistance() << endl;
+    for (int j = 0; j < HISTOGRAM_SIZE; j++) {
+    	cout << "v[" << j << "] = " << v[j] << endl;
+    }
 }
